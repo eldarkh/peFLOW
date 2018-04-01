@@ -8,13 +8,11 @@
 
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/logstream.h>
+#include <deal.II/base/parsed_function.h>
 #include <deal.II/lac/full_matrix.h>
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/precondition.h>
-#include <deal.II/lac/iterative_inverse.h>
-
-#include <deal.II/base/parsed_function.h>
-
+#include <deal.II/lac/sparse_ilu.h>
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_tools.h>
 #include <deal.II/grid/grid_in.h>
@@ -23,6 +21,7 @@
 #include <deal.II/fe/fe_rt_bubbles.h>
 #include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_system.h>
+#include <deal.II/fe/fe_tools.h>
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/data_out.h>
@@ -31,6 +30,7 @@
 
 #include <fstream>
 
+#include "../inc/problem.h"
 #include "../inc/darcy_data.h"
 #include "../inc/darcy_mfmfe.h"
 #include "../inc/utilities.h"
@@ -39,18 +39,14 @@ namespace darcy
 {
   using namespace dealii;
   using namespace utilities;
+  using namespace peflow;
 
   // MultipointMixedDarcyProblem: class constructor
   template <int dim>
   MultipointMixedDarcyProblem<dim>::MultipointMixedDarcyProblem (const unsigned int degree, ParameterHandler &param)
           :
-          prm(param),
-          degree(degree),
-          fe(FE_RT_Bubbles<dim>(degree), 1,
-             FE_DGQ<dim>(degree-1), 1),
-          dof_handler(triangulation),
-          computing_timer(std::cout, TimerOutput::summary,
-                          TimerOutput::wall_times)
+          DarcyProblem<dim>(degree, param,
+                       FESystem<dim>(FE_RT_Bubbles<dim>(degree), 1, FE_DGQ<dim>(degree-1), 1))
   {}
 
 
@@ -122,7 +118,8 @@ namespace darcy
   template <int dim>
   void MultipointMixedDarcyProblem<dim>::copy_cell_to_vertex (const VertexAssemblyCopyData &copy_data)
   {
-    for (auto m : copy_data.cell_mat) {
+    for (auto m : copy_data.cell_mat)
+    {
       for (auto p : m.second)
         vertex_matrix[m.first][p.first] += p.second;
 
@@ -141,8 +138,8 @@ namespace darcy
 // Function to assemble on a cell
   template <int dim>
   void MultipointMixedDarcyProblem<dim>::assemble_system_cell (const typename DoFHandler<dim>::active_cell_iterator &cell,
-                                                     VertexAssemblyScratchData                         &scratch_data,
-                                                     VertexAssemblyCopyData                            &copy_data)
+                                                               VertexAssemblyScratchData                         &scratch_data,
+                                                               VertexAssemblyCopyData                            &copy_data)
   {
     copy_data.cell_mat.clear();
     copy_data.cell_vec.clear();
@@ -171,7 +168,6 @@ namespace darcy
     // Assemble the div terms
     for (unsigned int q=0; q<n_q_points; ++q)
     {
-      //std::set<types::global_dof_index> vel_indices;
       Point<dim> p = scratch_data.fe_values.quadrature_point(q);
 
       for (unsigned int i=0; i<dofs_per_cell; ++i)
@@ -304,7 +300,7 @@ namespace darcy
                     *this,
                     &MultipointMixedDarcyProblem::assemble_system_cell,
                     &MultipointMixedDarcyProblem::copy_cell_to_vertex,
-                    VertexAssemblyScratchData(fe, triangulation,quad,face_quad,
+                    VertexAssemblyScratchData(fe, triangulation, quad, face_quad,
                                               k_inverse, bc, rhs),
                     VertexAssemblyCopyData());
 
@@ -386,7 +382,7 @@ namespace darcy
 
     // This part applies for both displacement and further stress recovery
     // stress_matrix is SPD so invert it with CG
-    invert_spd(velocity_matrix, copy_data.Ainverse);
+    copy_data.Ainverse.invert(velocity_matrix);
     copy_data.vertex_pres_matrix.reinit(n_cells, n_cells);
     copy_data.vertex_pres_rhs = pressure_rhs;
 
@@ -398,7 +394,7 @@ namespace darcy
     copy_data.Ainverse.vmult(tmp_rhs1,copy_data.velocity_rhs,false);
     copy_data.pressure_matrix.Tvmult(tmp_rhs3,tmp_rhs1,false);
     copy_data.vertex_pres_rhs *= -1.0; // -1
-    copy_data.vertex_pres_rhs +=tmp_rhs3;
+    copy_data.vertex_pres_rhs += tmp_rhs3;
 
     copy_data.p = (*n_it).first;
   }
@@ -428,8 +424,8 @@ namespace darcy
   void MultipointMixedDarcyProblem<dim>::pressure_assembly()
   {
     Functions::ParsedFunction<dim> *k_inv = new Functions::ParsedFunction<dim>(dim*dim);
-    Functions::ParsedFunction<dim> *bc       = new Functions::ParsedFunction<dim>(1);
-    Functions::ParsedFunction<dim> *rhs      = new Functions::ParsedFunction<dim>(1);
+    Functions::ParsedFunction<dim> *bc    = new Functions::ParsedFunction<dim>(1);
+    Functions::ParsedFunction<dim> *rhs   = new Functions::ParsedFunction<dim>(1);
 
     prm.enter_subsection(std::string("permeability ") + Utilities::int_to_string(dim)+std::string("D"));
     k_inv->parse_parameters(prm);
@@ -519,8 +515,8 @@ namespace darcy
   void MultipointMixedDarcyProblem<dim>::velocity_recovery()
   {
     Functions::ParsedFunction<dim> *k_inv = new Functions::ParsedFunction<dim>(dim*dim);
-    Functions::ParsedFunction<dim> *bc       = new Functions::ParsedFunction<dim>(1);
-    Functions::ParsedFunction<dim> *rhs      = new Functions::ParsedFunction<dim>(1);
+    Functions::ParsedFunction<dim> *bc    = new Functions::ParsedFunction<dim>(1);
+    Functions::ParsedFunction<dim> *rhs   = new Functions::ParsedFunction<dim>(1);
 
     prm.enter_subsection(std::string("permeability ") + Utilities::int_to_string(dim)+std::string("D"));
     k_inv->parse_parameters(prm);
@@ -573,166 +569,14 @@ namespace darcy
     SolverControl solver_control (10*n_p, 1e-10);
     SolverCG<> solver (solver_control);
 
-    PreconditionIdentity identity;
-    solver.solve(pres_system_matrix, pres_solution, pres_rhs, identity);
+    SparseILU<double> preconditioner;
+    preconditioner.initialize (pres_system_matrix);
+
+    solver.solve(pres_system_matrix, pres_solution, pres_rhs, preconditioner);
   }
 
 
-// MultipointMixedDarcyProblem: Compute errors
-  template <int dim>
-  void MultipointMixedDarcyProblem<dim>::compute_errors(const unsigned cycle)
-  {
-    TimerOutput::Scope t(computing_timer, "Compute errors");
-
-    const ComponentSelectFunction<dim> pressure_mask(dim, dim+1);
-    const ComponentSelectFunction<dim> velocity_mask(std::make_pair(0, dim), dim+1);
-
-    ExactSolution<dim> exact_solution( prm);
-    prm.enter_subsection(std::string("Exact solution ")+ Utilities::int_to_string(dim)+std::string("D"));
-    exact_solution.exact_solution_val_data.parse_parameters(prm);
-    prm.leave_subsection();
-
-    prm.enter_subsection(std::string("Exact gradient ")+ Utilities::int_to_string(dim)+std::string("D"));
-    exact_solution.exact_solution_grad_val_data.parse_parameters(prm);
-    prm.leave_subsection();
-
-    // Vectors to temporarily store cellwise errros
-    Vector<double> cellwise_errors (triangulation.n_active_cells());
-    Vector<double> cellwise_norms (triangulation.n_active_cells());
-
-    // Vectors to temporarily store cellwise componentwise div errors
-    Vector<double> cellwise_div_errors (triangulation.n_active_cells());
-    Vector<double> cellwise_div_norms (triangulation.n_active_cells());
-
-    // Define quadrature points to compute errors at
-    QTrapez<1>      q_trapez;
-    QIterated<dim>  quadrature(q_trapez,degree+2);
-
-    // This is used to show superconvergence at midcells
-    QGauss<dim>   quadrature_super(degree);
-
-    // Since we want to compute the relative norm
-    BlockVector<double> zerozeros(1, solution.size());
-
-
-    // Pressure error and norm
-    VectorTools::integrate_difference (dof_handler, solution, exact_solution,
-                                       cellwise_errors, quadrature,
-                                       VectorTools::L2_norm,
-                                       &pressure_mask);
-    const double p_l2_error = cellwise_errors.l2_norm();
-
-    VectorTools::integrate_difference (dof_handler, zerozeros, exact_solution,
-                                       cellwise_norms, quadrature,
-                                       VectorTools::L2_norm,
-                                       &pressure_mask);
-    const double p_l2_norm = cellwise_norms.l2_norm();
-
-    // Pressure error and norm at midcells
-    VectorTools::integrate_difference (dof_handler, solution, exact_solution,
-                                       cellwise_errors, quadrature_super,
-                                       VectorTools::L2_norm,
-                                       &pressure_mask);
-    const double p_l2_mid_error = cellwise_errors.l2_norm();
-
-    VectorTools::integrate_difference (dof_handler, zerozeros, exact_solution,
-                                       cellwise_norms, quadrature_super,
-                                       VectorTools::L2_norm,
-                                       &pressure_mask);
-    const double p_l2_mid_norm = cellwise_norms.l2_norm();
-
-    // Velocity L2 error and norm
-    VectorTools::integrate_difference (dof_handler, solution, exact_solution,
-                                       cellwise_errors, quadrature,
-                                       VectorTools::L2_norm,
-                                       &velocity_mask);
-    const double u_l2_error = cellwise_errors.l2_norm();
-
-    VectorTools::integrate_difference (dof_handler, zerozeros, exact_solution,
-                                       cellwise_norms, quadrature,
-                                       VectorTools::L2_norm,
-                                       &velocity_mask);
-
-    const double u_l2_norm = cellwise_norms.l2_norm();
-
-
-    // Velocity Hdiv error and seminorm
-    VectorTools::integrate_difference (dof_handler, solution, exact_solution,
-                                       cellwise_div_errors, quadrature,
-                                       VectorTools::Hdiv_seminorm,
-                                       &velocity_mask);
-    const double u_hd_error = cellwise_div_errors.l2_norm();
-
-    VectorTools::integrate_difference (dof_handler, zerozeros, exact_solution,
-                                       cellwise_div_norms, quadrature,
-                                       VectorTools::Hdiv_seminorm,
-                                       &velocity_mask);
-    const double u_hd_norm = cellwise_div_norms.l2_norm();
-
-
-    // Assemble convergence table
-    const unsigned int n_active_cells=triangulation.n_active_cells();
-    const unsigned int n_dofs=dof_handler.n_dofs();
-
-    convergence_table.add_value("cycle", cycle);
-    convergence_table.add_value("cells", n_active_cells);
-    convergence_table.add_value("dofs", n_dofs);
-    convergence_table.add_value("Velocity,L2", u_l2_error/u_l2_norm);
-    convergence_table.add_value("Velocity,Hdiv", u_hd_error/u_hd_norm);
-    convergence_table.add_value("Pressure,L2", p_l2_error/p_l2_norm);
-    convergence_table.add_value("Pressure,L2mid", p_l2_mid_error/p_l2_mid_norm);
-  }
-
-
-// MultipointMixedDarcyProblem: Output results
-  template <int dim>
-  void MultipointMixedDarcyProblem<dim>::output_results(const unsigned int cycle, const unsigned int refine)
-  {
-    TimerOutput::Scope t(computing_timer, "Output results");
-
-    std::vector<std::string> solution_names(dim, "u");
-    solution_names.push_back ("p");
-    std::vector<DataComponentInterpretation::DataComponentInterpretation> interpretation (dim, DataComponentInterpretation::component_is_part_of_vector);
-    interpretation.push_back (DataComponentInterpretation::component_is_scalar);
-
-    DataOut<dim> data_out;
-    data_out.add_data_vector (dof_handler, solution, solution_names, interpretation);
-    data_out.build_patches ();
-
-    std::ofstream output ("solution" + std::to_string(dim) + "d-" + std::to_string(cycle) + ".vtk");
-    data_out.write_vtk (output);
-
-    convergence_table.set_precision("Velocity,L2", 3);
-    convergence_table.set_precision("Velocity,Hdiv", 3);
-    convergence_table.set_precision("Pressure,L2", 3);
-    convergence_table.set_precision("Pressure,L2mid", 3);
-    convergence_table.set_scientific("Velocity,L2", true);
-    convergence_table.set_scientific("Velocity,Hdiv", true);
-    convergence_table.set_scientific("Pressure,L2", true);
-    convergence_table.set_scientific("Pressure,L2mid", true);
-    convergence_table.set_tex_caption("cells", "\\# cells");
-    convergence_table.set_tex_caption("dofs", "\\# dofs");
-    convergence_table.set_tex_caption("Velocity,L2", "$ \\|\\u - \\u_h\\|_{L^2} $");
-    convergence_table.set_tex_caption("Velocity,Hdiv", "$ \\|\\nabla\\cdot(\\u - \\u_h)\\|_{L^2} $");
-    convergence_table.set_tex_caption("Pressure,L2", "$ \\|p - p_h\\|_{L^2} $");
-    convergence_table.set_tex_caption("Pressure,L2mid", "$ \\|Qp - p_h\\|_{L^2} $");
-    convergence_table.set_tex_format("cells", "r");
-    convergence_table.set_tex_format("dofs", "r");
-
-    convergence_table.evaluate_convergence_rates("Velocity,L2", ConvergenceTable::reduction_rate_log2);
-    convergence_table.evaluate_convergence_rates("Velocity,Hdiv", ConvergenceTable::reduction_rate_log2);
-    convergence_table.evaluate_convergence_rates("Pressure,L2", ConvergenceTable::reduction_rate_log2);
-    convergence_table.evaluate_convergence_rates("Pressure,L2mid", ConvergenceTable::reduction_rate_log2);
-
-    std::ofstream error_table_file("error" + std::to_string(dim) + "d.tex");
-
-    if (cycle == refine-1){
-      convergence_table.write_text(std::cout);
-      convergence_table.write_tex(error_table_file);
-    }
-  }
-
-// MultipointMixedDarcyProblem: run
+  // MultipointMixedDarcyProblem: run
   template <int dim>
   void MultipointMixedDarcyProblem<dim>::run(const unsigned int refine, const unsigned int grid)
   {
@@ -742,8 +586,10 @@ namespace darcy
 
     for (unsigned int cycle=0; cycle<refine; ++cycle)
     {
-      if(cycle == 0){
-        if(grid){
+      if(cycle == 0)
+      {
+        if(grid)
+        {
           GridIn<dim> grid_in;
           grid_in.attach_triangulation (triangulation);
           std::string mesh_filename ("mesh"+std::to_string(dim)+"d.msh");
@@ -753,12 +599,16 @@ namespace darcy
           Assert(triangulation.dimension == dim, ExcDimensionMismatch(triangulation.dimension, dim));
 
           grid_in.read_msh (input_file);
-        } else {
+        }
+        else
+        {
           GridGenerator::hyper_cube (triangulation, 0, 1);
-          if (dim == 3) {
+          if (dim == 3)
+          {
             triangulation.refine_global(2);
             GridTools::transform(&grid_transform<dim>, triangulation);
-          } else if (dim == 2)
+          }
+          else if (dim == 2)
             triangulation.refine_global(1);
         }
 
@@ -773,15 +623,16 @@ namespace darcy
                 ||
                 (std::fabs(cell->face(face_number)->center()(1) - (1)) < 1e-12))
               cell->face(face_number)->set_boundary_id (1);
-      } else {
-        triangulation.refine_global(1);
       }
+      else
+        triangulation.refine_global(1);
 
       vertex_assembly();
       make_cell_centered_sp();
       pressure_assembly();
       solve_pressure ();
       velocity_recovery ();
+      postprocess();
       compute_errors (cycle);
       output_results (cycle, refine);
       reset_data_structures ();

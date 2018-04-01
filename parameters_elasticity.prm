@@ -3,8 +3,8 @@
 #################################################################################
 # Discretization
 set degree         = 1
-set refinements   = 2
-set grid_flag      = 0
+set refinements   = 3
+set grid_flag      = 1
 
 #################################################################################
 # Physical parameters

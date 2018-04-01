@@ -26,6 +26,7 @@ namespace elasticity
 {
   using namespace dealii;
   using namespace utilities;
+  using namespace peflow;
 
   /*
    * Class implementing the arbitrary order MSMFE method for
@@ -39,39 +40,32 @@ namespace elasticity
    * procedure.
    */
   template <int dim>
-  class MultipointMixedElasticityProblem : public Problem<dim>
+  class MultipointMixedElasticityProblem : public ElasticityProblem<dim>
   {
   public:
+    using ElasticityProblem<dim>::computing_timer;
+    using ElasticityProblem<dim>::fe;
+    using ElasticityProblem<dim>::dof_handler;
+    using ElasticityProblem<dim>::triangulation;
+    using ElasticityProblem<dim>::prm;
+    using ElasticityProblem<dim>::degree;
+    using ElasticityProblem<dim>::total_dim;
+    using ElasticityProblem<dim>::solution;
+    using ElasticityProblem<dim>::convergence_table;
+    using ElasticityProblem<dim>::compute_errors;
+    using ElasticityProblem<dim>::output_results;
+
     /*
      * Class constructor takes degree and reference to parameter handle
      * as arguments
      */
-    MultipointMixedElasticityProblem (const unsigned int degree,  ParameterHandler &);
+    MultipointMixedElasticityProblem (const unsigned int degree,  ParameterHandler &param);
 
     /*
      * Main driver function
      */
-    void run (const unsigned int refine, const unsigned int grid = 0);
+    virtual void run (const unsigned int refine, const unsigned int grid = 0);
   private:
-    /*
-     * Reference to a parameter handler object that stores parameters,
-     * data and the exact solution
-     */
-    ParameterHandler &prm;
-
-    /*
-     * The degree of FE spaces to use.
-     * The stable triple is RT_Bubbles(k) - DG_Q(k-1) - Q(k)
-     */
-    const unsigned int  degree;
-
-    /*
-     * Total number of components of the solution, it is needed for
-     * convenience, as elasticity problem has different dimension
-     * for the rotation variable in 2 and 3 dimension
-     */
-    const unsigned int  total_dim;
-
     /*
      * Data structure holding the information needed by threads
      * during assembly process
@@ -167,19 +161,8 @@ namespace elasticity
     void reset_data_structures ();
 
     /*
-     * Functions that compute errors and output results and
-     * convergence rates
-     */
-    void compute_errors (const unsigned int cycle);
-    void output_results (const unsigned int cycle,  const unsigned int refine);
-
-    /*
      * Data structures and internal parameters
      */
-    Triangulation<dim>  triangulation;
-    FESystem<dim>       fe;
-    DoFHandler<dim>     dof_handler;
-
     SparsityPattern cell_centered_sp;
     SparseMatrix<double> displ_system_matrix;
     Vector<double> displ_rhs;
@@ -203,13 +186,6 @@ namespace elasticity
     Vector<double> displ_solution;
     Vector<double> stress_solution;
     Vector<double> rotation_solution;
-    BlockVector<double> solution;
-
-    /*
-     * Convergence table and wall-time timer objects
-     */
-    ConvergenceTable convergence_table;
-    TimerOutput      computing_timer;
   };
 
 }

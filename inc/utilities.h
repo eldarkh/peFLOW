@@ -77,8 +77,8 @@ namespace utilities
     switch (dim)
     {
       case 2:
-        return Point<dim>(p[0] + 0.03*cos(3*M_PI*p[0])*cos(3*M_PI*p[1])*cos(3*M_PI*p[2]),
-                          p[1] - 0.04*cos(3*M_PI*p[0])*cos(3*M_PI*p[1])*cos(3*M_PI*p[2]));
+        return Point<dim>(p[0] + 0.03*cos(3*M_PI*p[0])*cos(3*M_PI*p[1]),
+                          p[1] - 0.04*cos(3*M_PI*p[0])*cos(3*M_PI*p[1]));
         break;
       case 3:
         return Point<dim>(p[0] + 0.03*cos(3*M_PI*p[0])*cos(3*M_PI*p[1])*cos(3*M_PI*p[2]),

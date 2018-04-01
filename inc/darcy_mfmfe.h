@@ -9,19 +9,14 @@
 #ifndef PEFLOW_DARCY_MFMFE_H
 #define PEFLOW_DARCY_MFMFE_H
 
+#include <deal.II/base/parsed_function.h>
 #include <deal.II/lac/block_sparse_matrix.h>
 #include <deal.II/lac/block_vector.h>
 #include <deal.II/grid/tria.h>
-
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/fe_values.h>
+#include <deal.II/fe/fe_dgq.h>
 
-#include <deal.II/base/parsed_function.h>
-
-#include <deal.II/base/convergence_table.h>
-#include <deal.II/base/timer.h>
-
-#include "utilities.h"
 #include <unordered_map>
 
 #include "../inc/problem.h"
@@ -32,6 +27,7 @@ namespace darcy
 {
   using namespace dealii;
   using namespace utilities;
+  using namespace peflow;
 
   /*
    * Class implementing the arbitrary order MFMFE method for
@@ -43,9 +39,20 @@ namespace darcy
    * is recovered by the same local procedure.
    */
   template <int dim>
-  class MultipointMixedDarcyProblem : public Problem<dim>
+  class MultipointMixedDarcyProblem : public DarcyProblem<dim>
   {
   public:
+    using DarcyProblem<dim>::computing_timer;
+    using DarcyProblem<dim>::fe;
+    using DarcyProblem<dim>::dof_handler;
+    using DarcyProblem<dim>::triangulation;
+    using DarcyProblem<dim>::prm;
+    using DarcyProblem<dim>::degree;
+    using DarcyProblem<dim>::solution;
+    using DarcyProblem<dim>::convergence_table;
+    using DarcyProblem<dim>::postprocess;
+    using DarcyProblem<dim>::compute_errors;
+    using DarcyProblem<dim>::output_results;
     /*
      * Class constructor takes degree and reference to parameter handle
      * as arguments
@@ -57,8 +64,6 @@ namespace darcy
      */
     void run (const unsigned int refine, const unsigned int grid = 0);
   private:
-    ParameterHandler &prm;
-
     /*
      * Data structure holding the information needed by threads
      * during assembly process
@@ -102,8 +107,8 @@ namespace darcy
      * Compute local cell contributions
      */
     void assemble_system_cell (const typename DoFHandler<dim>::active_cell_iterator &cell,
-                               VertexAssemblyScratchData                         &scratch_data,
-                               VertexAssemblyCopyData                            &copy_data);
+                               VertexAssemblyScratchData                            &scratch_data,
+                               VertexAssemblyCopyData                               &copy_data);
 
     /*
      * Rearrange cell contributions to nodal associated blocks
@@ -151,21 +156,8 @@ namespace darcy
     void reset_data_structures ();
 
     /*
-     * Functions that compute errors and output results and
-     * convergence rates
-     */
-    void compute_errors (const unsigned int cycle);
-    void output_results (const unsigned int cycle,  const unsigned int refine);
-
-    /*
      * Data structures and internal parameters
      */
-    const unsigned int  degree;
-    Triangulation<dim>  triangulation;
-    FESystem<dim>       fe;
-    DoFHandler<dim>     dof_handler;
-    BlockVector<double> solution;
-
     SparsityPattern cell_centered_sp;
     SparseMatrix<double> pres_system_matrix;
     Vector<double> pres_rhs;
@@ -184,12 +176,6 @@ namespace darcy
 
     Vector<double> pres_solution;
     Vector<double> vel_solution;
-
-    /*
-     * Convergence table and wall-time timer objects
-     */
-    ConvergenceTable convergence_table;
-    TimerOutput      computing_timer;
   };
 
 }

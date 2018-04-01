@@ -28,6 +28,7 @@
 namespace elasticity
 {
   using namespace dealii;
+  using namespace peflow;
 
   /*
    * Class implementing the mixed finite element method
@@ -37,26 +38,32 @@ namespace elasticity
    * in all variables. The resulting system is solved directly.
    */
   template <int dim>
-  class MixedElasticityProblem : public Problem<dim>
+  class MixedElasticityProblem : public ElasticityProblem<dim>
   {
   public:
+    using ElasticityProblem<dim>::computing_timer;
+    using ElasticityProblem<dim>::fe;
+    using ElasticityProblem<dim>::dof_handler;
+    using ElasticityProblem<dim>::triangulation;
+    using ElasticityProblem<dim>::prm;
+    using ElasticityProblem<dim>::degree;
+    using ElasticityProblem<dim>::total_dim;
+    using ElasticityProblem<dim>::solution;
+    using ElasticityProblem<dim>::convergence_table;
+    using ElasticityProblem<dim>::compute_errors;
+    using ElasticityProblem<dim>::output_results;
+
     /*
      * Class constructor takes degree and reference to parameter handle
      * as arguments
      */
     MixedElasticityProblem(const unsigned int deg,
-                           ParameterHandler &);
+                           ParameterHandler &param);
     /*
      * Main driver function
      */
-    void run(const unsigned int refine, const unsigned int grid = 0);
+    virtual void run(const unsigned int refine, const unsigned int grid = 0);
   private:
-    /*
-     * Reference to a parameter handler object that stores parameters,
-     * data and the exact solution
-     */
-    ParameterHandler &prm;
-
     /*
      * Data structure holding the information needed by threads
      * during assembly process
@@ -115,32 +122,11 @@ namespace elasticity
     void solve();
 
     /*
-     * Functions that compute errors and output results and
-     * convergence rates
-     */
-    void compute_errors (const unsigned int cycle);
-    void output_results (const unsigned int cycle,  const unsigned int refine);
-
-    /*
      * Data structures and internal parameters
      */
-    const unsigned int degree;
-    const int          total_dim;
-    Triangulation<dim> triangulation;
-    FESystem<dim>      fe;
-    DoFHandler<dim>    dof_handler;
-
     BlockSparsityPattern      sparsity_pattern;
     BlockSparseMatrix<double> system_matrix;
-
-    BlockVector<double> solution;
     BlockVector<double> system_rhs;
-
-    /*
-     * Convergence table and wall-time timer objects
-     */
-    ConvergenceTable convergence_table;
-    TimerOutput      computing_timer;
   };
 }
 

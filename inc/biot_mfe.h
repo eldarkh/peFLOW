@@ -30,6 +30,7 @@
 namespace biot
 {
   using namespace dealii;
+  using namespace peflow;
 
   // TODO: change Biot to not read parameters from file on every time step
 
@@ -164,7 +165,7 @@ namespace biot
      * convenience, as elasticity problem has different dimension
      * for the rotation variable in 2 and 3 dimension
      */
-    const int total_dim;
+    const int total_dim = dim+1+ dim*dim + dim + static_cast<int>(dim*(dim-1)/2);
 
     /*
      * We store errors on each time step, as they are needed for L2 in time

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2016 - 2017 Ilona Ambartsumyan, Eldar Khattatov
+// Copyright (C) 2016 - 2018 Ilona Ambartsumyan, Eldar Khattatov
 //
 // This file is part of peFLOW.
 //
@@ -21,12 +21,13 @@
 /*
  * Main driver function. Chooses the model and dimension.
  * Then reads parameters from the file. The parameter files
- * should be in the same directory as CMakeLists.txt.
+ * should be in the same directory as CMakeLists.txt
  */
 int main()
 {
   try {
     using namespace dealii;
+    using namespace peflow;
     using namespace darcy;
     using namespace elasticity;
     using namespace biot;
@@ -52,13 +53,13 @@ int main()
     std::cin >> dim;
 
     ParameterHandler prm;
-    Problem<2> *problem2d = nullptr;
-    Problem<3> *problem3d = nullptr;
+    Problem<2> *problem2d;
+    Problem<3> *problem3d;
 
     if(model == 1)
     {
       DarcyParameterReader   param(prm);
-      param.read_parameters("../parameters_darcy.prm");
+      param.read_parameters("parameters_darcy.prm");
 
       // Get parameters
       const unsigned int degree = prm.get_integer("degree");
@@ -69,12 +70,12 @@ int main()
       {
         case 2:
           std::cout << "Mixed Darcy, 2D case: " << std::endl;
-          problem2d = new MixedDarcyProblem<2>(degree, prm);
+          problem2d = new DarcyMFE<2>(degree, prm);
           problem2d->run(refinements, grid);
           break;
         case 3:
           std::cout << "Mixed Darcy, 3D case: " << std::endl;
-          problem3d = new MixedDarcyProblem<3>(degree, prm);
+          problem3d = new DarcyMFE<3>(degree, prm);
           problem3d->run(refinements, grid);
           break;
         default:
@@ -84,7 +85,7 @@ int main()
     else if(model == 2)
     {
       DarcyParameterReader   param(prm);
-      param.read_parameters("../parameters_darcy.prm");
+      param.read_parameters("parameters_darcy.prm");
 
       // Get parameters
       const unsigned int degree = prm.get_integer("degree");
@@ -110,7 +111,7 @@ int main()
     else if(model == 3)
     {
       ElasticityParameterReader   param(prm);
-      param.read_parameters("../parameters_elasticity.prm");
+      param.read_parameters("parameters_elasticity.prm");
 
       // Get parameters
       const unsigned int degree = prm.get_integer("degree");
@@ -136,7 +137,7 @@ int main()
     else if(model == 4)
     {
       ElasticityParameterReader   param(prm);
-      param.read_parameters("../parameters_elasticity.prm");
+      param.read_parameters("parameters_elasticity.prm");
 
       // Get parameters
       const unsigned int degree = prm.get_integer("degree");
@@ -162,7 +163,7 @@ int main()
     else if(model == 5)
     {
       BiotParameterReader param(prm);
-      param.read_parameters("../parameters_biot.prm");
+      param.read_parameters("parameters_biot.prm");
 
       // Get parameters
       const unsigned int degree = prm.get_integer("degree");

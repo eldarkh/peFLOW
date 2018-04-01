@@ -19,8 +19,42 @@
 namespace darcy
 {
 	using namespace dealii;
+  template <int dim>
+  class PressureBoundaryValues : public Function<dim>
+  {
+  public:
+    PressureBoundaryValues () : Function<dim>(1) {}
 
-	
+    virtual double value (const Point<dim>   &p,
+                          const unsigned int  component = 0) const;
+  };
+
+
+  template <int dim>
+  double
+  PressureBoundaryValues<dim>::value (const Point<dim>  &p,
+                                      const unsigned int /*component*/) const
+  {
+    //const double alpha = 0.3;
+    //const double beta = 1;
+    //return -(alpha*p[0]*p[1]*p[1]/2 + beta*p[0] - alpha*p[0]*p[0]*p[0]/6);
+    //return std::cos(2*p[0]+1)*std::exp(p[1]);
+    switch (dim)
+    {
+      case 2:
+        return (p[0]*p[0]*p[0])*(p[1]*p[1]*p[1]*p[1])+p[0]*p[0]+sin(p[0]*p[1])*cos(p[1]);
+        break;
+
+      case 3:
+        return cos(p[0]*p[1])+sin(p[2])+(p[0]*p[0]*p[0]*p[0])*(p[1]*p[1]*p[1])+p[1]*(p[2]*p[2])+p[0]*p[0];
+        break;
+
+      default:
+      Assert(false, ExcNotImplemented());
+    }
+
+  }
+
   // Exact solution
   template <int dim>
   class ExactSolution : public Function<dim>

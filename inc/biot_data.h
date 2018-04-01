@@ -16,7 +16,7 @@
 
 namespace biot
 {
-	using namespace dealii;
+  using namespace dealii;
 
   // Exact solution
   template <int dim>
@@ -34,8 +34,6 @@ namespace biot
                                Vector<double>   &value) const;
     virtual void vector_gradient (const Point<dim> &p,
                                   std::vector<Tensor<1,dim,double>>  &grads) const;
-    //inline double get_time() {return current_time;}
-
   };
 
   template <int dim>
@@ -299,8 +297,8 @@ namespace biot
   public:
     LameCoefficients<dim> (ParameterHandler &, const Functions::ParsedFunction<dim> *mu_data,
                            const Functions::ParsedFunction<dim> *lambda_data);
-    const double mu_value (const Point<dim> &p) const   {return mu->value(p);}
-    const double lambda_value (const Point<dim> &p) const   {return lambda->value(p);}
+    double mu_value (const Point<dim> &p) const   {return mu->value(p);}
+    double lambda_value (const Point<dim> &p) const   {return lambda->value(p);}
     const Functions::ParsedFunction<dim> *mu;
     const Functions::ParsedFunction<dim> *lambda;
   private:

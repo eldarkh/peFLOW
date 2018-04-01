@@ -11,8 +11,7 @@
 #include <deal.II/lac/full_matrix.h>
 #include <deal.II/lac/solver_cg.h>
 #include <deal.II/lac/precondition.h>
-#include <deal.II/lac/iterative_inverse.h>
-
+#include <deal.II/lac/sparse_ilu.h>
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_tools.h>
 #include <deal.II/grid/grid_in.h>
@@ -38,20 +37,16 @@ namespace elasticity
 {
   using namespace dealii;
   using namespace utilities;
+  using namespace peflow;
 
   // MultipointMixedElasticityProblem: class constructor
   template <int dim>
   MultipointMixedElasticityProblem<dim>::MultipointMixedElasticityProblem (const unsigned int degree, ParameterHandler &param)
     :
-      prm(param),
-      degree(degree),
-      total_dim(dim*dim + dim + static_cast<int>(0.5*dim*(dim-1))),
-      fe(FE_RT_Bubbles<dim>(degree), dim,
-         FE_DGQ<dim>(degree-1), dim,
-         FE_Q<dim>(degree), static_cast<int>(0.5*dim*(dim-1))),
-      dof_handler(triangulation),
-      computing_timer(std::cout, TimerOutput::summary,
-                      TimerOutput::wall_times)
+    ElasticityProblem<dim>(degree, param,
+                           FESystem<dim>(FE_RT_Bubbles<dim>(degree), dim,
+                                         FE_DGQ<dim>(degree-1), dim,
+                                         FE_Q<dim>(degree), static_cast<int>(0.5*dim*(dim-1))))
   {}
 
 
@@ -471,7 +466,7 @@ namespace elasticity
 
     // Create and invert A matrix
     copy_data.Ainverse.reinit(n_edges,n_edges);
-    invert_spd(stress_matrix, copy_data.Ainverse);
+    copy_data.Ainverse.invert(stress_matrix);
 
     // Create CtAiC and invert it
     copy_data.CACinverse.reinit(rotation_dim,rotation_dim);
@@ -727,224 +722,11 @@ namespace elasticity
     SolverControl solver_control (10*n_u, 1e-10);
     SolverCG<> solver (solver_control);
 
-    PreconditionIdentity identity;
-
-    solver.solve(displ_system_matrix, displ_solution, displ_rhs, identity);
+    SparseILU<double> preconditioner;
+    preconditioner.initialize (displ_system_matrix);
+    solver.solve(displ_system_matrix, displ_solution, displ_rhs, preconditioner);
   }
 
-
-  // MultipointMixedElasticityProblem: Compute errors
-  template <int dim>
-  void MultipointMixedElasticityProblem<dim>::compute_errors(const unsigned cycle)
-  {
-    TimerOutput::Scope t(computing_timer, "Compute errors");
-
-    const ComponentSelectFunction<dim> rotation_mask(dim*dim+dim, MultipointMixedElasticityProblem<dim>::total_dim);
-    const ComponentSelectFunction<dim> displacement_mask(std::make_pair(dim*dim,dim*dim+dim), MultipointMixedElasticityProblem<dim>::total_dim);
-    const ComponentSelectFunction<dim> stress_mask(std::make_pair(0,dim*dim), MultipointMixedElasticityProblem<dim>::total_dim);
-    
-    ExactSolution<dim> exact_solution(prm);
-    prm.enter_subsection(std::string("Exact solution ")+ Utilities::int_to_string(dim)+std::string("D"));
-    exact_solution.exact_solution_val_data.parse_parameters(prm);
-    prm.leave_subsection();
-
-    prm.enter_subsection(std::string("Exact gradient ")+ Utilities::int_to_string(dim)+std::string("D"));
-    exact_solution.exact_solution_grad_val_data.parse_parameters(prm);
-    prm.leave_subsection();
-
-    // Vectors to temporarily store cellwise errros
-    Vector<double> cellwise_errors (triangulation.n_active_cells());
-    Vector<double> cellwise_norms (triangulation.n_active_cells());
-
-    // Vectors to temporarily store cellwise componentwise div errors
-    Vector<double> cellwise_div_errors (triangulation.n_active_cells());
-    Vector<double> cellwise_div_norms (triangulation.n_active_cells());
-
-    // Define quadrature points to compute errors at
-    QTrapez<1>      q_trapez;
-    QIterated<dim>  quadrature(q_trapez,degree+2);
-
-    // This is used to show superconvergence at midcells
-    QGauss<dim>   quadrature_super(degree);
-
-    // Since we want to compute the relative norm
-    BlockVector<double> zerozeros(1, solution.size());
-
-    // Rotation error and norm
-    VectorTools::integrate_difference (dof_handler, solution, exact_solution,
-                                       cellwise_errors, quadrature,
-                                       VectorTools::L2_norm,
-                                       &rotation_mask);
-    const double p_l2_error = cellwise_errors.l2_norm();
-
-    VectorTools::integrate_difference (dof_handler, zerozeros, exact_solution,
-                                       cellwise_norms, quadrature,
-                                       VectorTools::L2_norm,
-                                       &rotation_mask);
-    const double p_l2_norm = cellwise_norms.l2_norm();
-
-    // Displacement error and norm
-    VectorTools::integrate_difference (dof_handler, solution, exact_solution,
-                                       cellwise_errors, quadrature,
-                                       VectorTools::L2_norm,
-                                       &displacement_mask);
-    const double u_l2_error = cellwise_errors.l2_norm();
-
-    VectorTools::integrate_difference (dof_handler, zerozeros, exact_solution,
-                                       cellwise_norms, quadrature,
-                                       VectorTools::L2_norm,
-                                       &displacement_mask);
-    const double u_l2_norm = cellwise_norms.l2_norm();
-
-    // Displacement error and norm at midcells
-    VectorTools::integrate_difference (dof_handler, solution, exact_solution,
-                                       cellwise_errors, quadrature_super,
-                                       VectorTools::L2_norm,
-                                       &displacement_mask);
-    const double u_l2_mid_error = cellwise_errors.l2_norm();
-
-    VectorTools::integrate_difference (dof_handler, zerozeros, exact_solution,
-                                       cellwise_norms, quadrature_super,
-                                       VectorTools::L2_norm,
-                                       &displacement_mask);
-    const double u_l2_mid_norm = cellwise_norms.l2_norm();
-
-    // Stress L2 error and norm
-    VectorTools::integrate_difference (dof_handler, solution, exact_solution,
-                                       cellwise_errors, quadrature,
-                                       VectorTools::L2_norm,
-                                       &stress_mask);
-    const double s_l2_error = cellwise_errors.l2_norm();
-
-    VectorTools::integrate_difference (dof_handler, zerozeros, exact_solution,
-                                       cellwise_norms, quadrature,
-                                       VectorTools::L2_norm,
-                                       &stress_mask);
-
-    const double s_l2_norm = cellwise_norms.l2_norm();
-
-    // Stress Hdiv seminorm
-    cellwise_errors = 0;
-    cellwise_norms = 0;
-    for (int i=0; i<dim; ++i){
-        const ComponentSelectFunction<dim> stress_component_mask (std::make_pair(i*dim,(i+1)*dim),MultipointMixedElasticityProblem<dim>::total_dim);
-
-        VectorTools::integrate_difference (dof_handler, solution, exact_solution,
-                                           cellwise_div_errors, quadrature,
-                                           VectorTools::Hdiv_seminorm,
-                                           &stress_component_mask);
-        cellwise_errors += cellwise_div_errors;
-
-        VectorTools::integrate_difference (dof_handler, zerozeros, exact_solution,
-                                           cellwise_div_norms, quadrature,
-                                           VectorTools::Hdiv_seminorm,
-                                           &stress_component_mask);
-        cellwise_norms += cellwise_div_norms;
-      }
-
-    const double s_hd_error = cellwise_errors.l2_norm();
-    const double s_hd_norm = cellwise_norms.l2_norm();
-
-    // Assemble convergence table
-    const unsigned int n_active_cells=triangulation.n_active_cells();
-    const unsigned int n_dofs=dof_handler.n_dofs();
-
-    convergence_table.add_value("cycle", cycle);
-    convergence_table.add_value("cells", n_active_cells);
-    convergence_table.add_value("dofs", n_dofs);
-    convergence_table.add_value("Stress,L2", s_l2_error/s_l2_norm);
-    convergence_table.add_value("Stress,Hdiv", s_hd_error/s_hd_norm); //sx_hd_error/sx_hd_norm
-    convergence_table.add_value("Displ,L2", u_l2_error/u_l2_norm);
-    convergence_table.add_value("Displ,L2mid", u_l2_mid_error/u_l2_mid_norm);
-    convergence_table.add_value("Rotat,L2", p_l2_error/p_l2_norm);
-  }
-
-
-  // MultipointMixedElasticityProblem: Output results
-  template <int dim>
-  void MultipointMixedElasticityProblem<dim>::output_results(const unsigned int cycle, const unsigned int refine)
-  {
-    TimerOutput::Scope t(computing_timer, "Output results");
-    std::vector<std::string> solution_names;
-    std::string rhs_name = "rhs";
-
-    switch(dim)
-      {
-      case 2:
-        solution_names.insert(solution_names.end(), {"s11","s12","s21","s22","u","v","p"});
-        break;
-
-      case 3:
-        solution_names.insert(solution_names.end(),
-        {"s11","s12","s13","s21","s22","s23","s31","s32","s33","u","v","w","p1","p2","p3"});
-        break;
-
-      default:
-        Assert(false, ExcNotImplemented());
-      }
-
-    std::vector<DataComponentInterpretation::DataComponentInterpretation>
-        data_component_interpretation(total_dim-1, DataComponentInterpretation::component_is_part_of_vector);
-
-    switch (dim)
-      {
-      case 2:
-        data_component_interpretation.push_back (DataComponentInterpretation::component_is_scalar);
-        break;
-
-      case 3:
-        data_component_interpretation.push_back (DataComponentInterpretation::component_is_part_of_vector);
-        break;
-
-      default:
-        Assert(false, ExcNotImplemented());
-        break;
-      }
-
-    DataOut<dim> data_out;
-    data_out.attach_dof_handler (dof_handler);
-    data_out.add_data_vector (solution, solution_names,
-                              DataOut<dim>::type_dof_data,
-                              data_component_interpretation);
-
-    data_out.build_patches ();
-
-    std::ofstream output ("solution" + std::to_string(dim) + "d-" + std::to_string(cycle) + ".vtk");
-    data_out.write_vtk (output);
-
-    convergence_table.set_precision("Stress,L2", 3);
-    convergence_table.set_precision("Stress,Hdiv", 3);
-    convergence_table.set_precision("Displ,L2", 3);
-    convergence_table.set_precision("Displ,L2mid", 3);
-    convergence_table.set_precision("Rotat,L2", 3);
-    convergence_table.set_scientific("Stress,L2", true);
-    convergence_table.set_scientific("Stress,Hdiv", true);
-    convergence_table.set_scientific("Displ,L2", true);
-    convergence_table.set_scientific("Displ,L2mid", true);
-    convergence_table.set_scientific("Rotat,L2", true);
-    convergence_table.set_tex_caption("cells", "\\# cells");
-    convergence_table.set_tex_caption("dofs", "\\# dofs");
-    convergence_table.set_tex_caption("Stress,L2", "$ \\|\\sigma - \\sigma_h\\|_{L^2} $");
-    convergence_table.set_tex_caption("Stress,Hdiv", "$ \\|\\nabla\\cdot(\\sigma - \\sigma_h)\\|_{L^2} $");
-    convergence_table.set_tex_caption("Displ,L2", "$ \\|u - u_h\\|_{L^2} $");
-    convergence_table.set_tex_caption("Displ,L2mid", "$ \\|Qu - u_h\\|_{L^2} $");
-    convergence_table.set_tex_caption("Rotat,L2", "$ \\|p - p_h\\|_{L^2} $");
-    convergence_table.set_tex_format("cells", "r");
-    convergence_table.set_tex_format("dofs", "r");
-
-    convergence_table.evaluate_convergence_rates("Stress,L2", ConvergenceTable::reduction_rate_log2);
-    convergence_table.evaluate_convergence_rates("Stress,Hdiv", ConvergenceTable::reduction_rate_log2);
-    convergence_table.evaluate_convergence_rates("Displ,L2", ConvergenceTable::reduction_rate_log2);
-    convergence_table.evaluate_convergence_rates("Displ,L2mid", ConvergenceTable::reduction_rate_log2);
-    convergence_table.evaluate_convergence_rates("Rotat,L2", ConvergenceTable::reduction_rate_log2);
-
-    std::ofstream error_table_file("error" + std::to_string(dim) + "d.tex");
-
-    if (cycle == refine-1){
-        convergence_table.write_text(std::cout);
-        convergence_table.write_tex(error_table_file);
-      }
-  }
 
   // MultipointMixedElasticityProblem: run
   template <int dim>

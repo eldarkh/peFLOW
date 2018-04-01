@@ -189,10 +189,12 @@ namespace elasticity
   class LameCoefficients : public Function<dim>
   {
   public:
-    LameCoefficients<dim> (ParameterHandler &, const Functions::ParsedFunction<dim> *mu_data,
+    LameCoefficients<dim> (ParameterHandler &,
+                           const Functions::ParsedFunction<dim> *mu_data,
                            const Functions::ParsedFunction<dim> *lambda_data);
-    const double mu_value (const Point<dim> &p) const   {return mu->value(p);}
-    const double lambda_value (const Point<dim> &p) const   {return lambda->value(p);}
+    double mu_value (const Point<dim> &p) const {return mu->value(p);}
+    double lambda_value (const Point<dim> &p) const {return lambda->value(p);}
+
     const Functions::ParsedFunction<dim> *mu;
     const Functions::ParsedFunction<dim> *lambda;
   private:

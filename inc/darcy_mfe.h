@@ -9,17 +9,13 @@
 #ifndef PEFLOW_DARCY_MFE_H
 #define PEFLOW_DARCY_MFE_H
 
+#include <deal.II/base/parsed_function.h>
 #include <deal.II/lac/block_sparse_matrix.h>
 #include <deal.II/lac/block_vector.h>
 #include <deal.II/grid/tria.h>
-
 #include <deal.II/fe/fe_system.h>
+#include <deal.II/fe/fe_dgq.h>
 #include <deal.II/fe/fe_values.h>
-
-#include <deal.II/base/parsed_function.h>
-
-#include <deal.II/base/convergence_table.h>
-#include <deal.II/base/timer.h>
 
 #include "../inc/problem.h"
 #include "../inc/utilities.h"
@@ -29,6 +25,7 @@
 namespace darcy
 {
   using namespace dealii;
+  using namespace peflow;
 
   /*
    * Class implementing the classical Raviart-Thomas mixed finite
@@ -39,26 +36,31 @@ namespace darcy
    * diagonal preconditioner.
    */
   template <int dim>
-  class MixedDarcyProblem : public Problem<dim>
+  class DarcyMFE : public DarcyProblem<dim>
   {
   public:
+    using DarcyProblem<dim>::computing_timer;
+    using DarcyProblem<dim>::fe;
+    using DarcyProblem<dim>::dof_handler;
+    using DarcyProblem<dim>::triangulation;
+    using DarcyProblem<dim>::prm;
+    using DarcyProblem<dim>::degree;
+    using DarcyProblem<dim>::solution;
+    using DarcyProblem<dim>::convergence_table;
+    using DarcyProblem<dim>::postprocess;
+    using DarcyProblem<dim>::compute_errors;
+    using DarcyProblem<dim>::output_results;
     /*
      * Class constructor takes degree and reference to parameter handle
      * as arguments
      */
-    MixedDarcyProblem(const unsigned int degree,
-                      ParameterHandler &);
+    DarcyMFE(const unsigned int degree,
+             ParameterHandler &);
     /*
      * Main driver function
      */
-    void run(const unsigned int refine, const unsigned int grid);
+    virtual void run(const unsigned int refine, const unsigned int grid);
   private:
-    /*
-     * Reference to a parameter handler object that stores parameters,
-     * data and the exact solution
-     */
-    ParameterHandler &prm;
-
     /*
      * Data structure holding the information needed by threads
      * during assembly process
@@ -117,32 +119,11 @@ namespace darcy
     void solve();
 
     /*
-     * Functions that compute errors and output results and
-     * convergence rates
-     */
-    void compute_errors (const unsigned int cycle);
-    void output_results (const unsigned int cycle,  const unsigned int refine);
-
-    /*
      * Data structures and internal parameters
      */
-    const unsigned int degree;
-    Triangulation<dim> triangulation;
-    FESystem<dim>      fe;
-    DoFHandler<dim>    dof_handler;
-
-
     BlockSparsityPattern      sparsity_pattern;
     BlockSparseMatrix<double> system_matrix;
-
-    BlockVector<double> solution;
-    BlockVector<double> system_rhs;
-
-    /*
-     * Convergence table and wall-time timer objects
-     */
-    ConvergenceTable convergence_table;
-    TimerOutput      computing_timer;
+    BlockVector<double>       system_rhs;
   };
 }
 
