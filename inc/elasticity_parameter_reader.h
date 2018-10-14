@@ -16,24 +16,27 @@ namespace elasticity
 {
   using namespace dealii;
 
-class ElasticityParameterReader : public Subscriptor
+  class ElasticityParameterReader : public Subscriptor
   {
   public:
-    ElasticityParameterReader(ParameterHandler &paramhandler) : prm(paramhandler) {}
-    inline void read_parameters(const std::string);
+    ElasticityParameterReader(ParameterHandler &paramhandler)
+      : prm(paramhandler)
+    {}
+    inline void
+    read_parameters(const std::string);
+
   private:
-    inline void declare_parameters();
+    inline void
+                      declare_parameters();
     ParameterHandler &prm;
   };
 
-  inline void ElasticityParameterReader::declare_parameters()
+  inline void
+  ElasticityParameterReader::declare_parameters()
   {
-    prm.declare_entry("degree", "0",
-                      Patterns::Integer());
-    prm.declare_entry("refinements", "1",
-                      Patterns::Integer());
-    prm.declare_entry("grid_flag", "0",
-                      Patterns::Integer());
+    prm.declare_entry("degree", "0", Patterns::Integer());
+    prm.declare_entry("refinements", "1", Patterns::Integer());
+    prm.declare_entry("grid_flag", "0", Patterns::Integer());
 
     prm.enter_subsection("lambda 2D");
     {
@@ -65,65 +68,70 @@ class ElasticityParameterReader : public Subscriptor
 
     prm.enter_subsection("RHS 2D");
     {
-      Functions::ParsedFunction<2>::declare_parameters(prm,2);
+      Functions::ParsedFunction<2>::declare_parameters(prm, 2);
       prm.set("Function expression", "0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("RHS 3D");
     {
-      Functions::ParsedFunction<3>::declare_parameters(prm,3);
+      Functions::ParsedFunction<3>::declare_parameters(prm, 3);
       prm.set("Function expression", "0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("BC 2D");
     {
-      Functions::ParsedFunction<2>::declare_parameters(prm,2);
+      Functions::ParsedFunction<2>::declare_parameters(prm, 2);
       prm.set("Function expression", "0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("BC 3D");
     {
-      Functions::ParsedFunction<3>::declare_parameters(prm,3);
+      Functions::ParsedFunction<3>::declare_parameters(prm, 3);
       prm.set("Function expression", "0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Exact solution 2D");
     {
-      Functions::ParsedFunction<2>::declare_parameters(prm,7);
+      Functions::ParsedFunction<2>::declare_parameters(prm, 7);
       prm.set("Function expression", "0; 0; 0; 0; 0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Exact solution 3D");
     {
-      Functions::ParsedFunction<3>::declare_parameters(prm,15);
-      prm.set("Function expression", "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
+      Functions::ParsedFunction<3>::declare_parameters(prm, 15);
+      prm.set("Function expression",
+              "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Exact gradient 2D");
     {
-      Functions::ParsedFunction<2>::declare_parameters(prm,14);
-      prm.set("Function expression", "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
+      Functions::ParsedFunction<2>::declare_parameters(prm, 14);
+      prm.set("Function expression",
+              "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Exact gradient 3D");
     {
-      Functions::ParsedFunction<3>::declare_parameters(prm,45);
-      prm.set("Function expression", "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
+      Functions::ParsedFunction<3>::declare_parameters(prm, 45);
+      prm.set(
+        "Function expression",
+        "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
     }
     prm.leave_subsection();
   }
-  inline void ElasticityParameterReader::read_parameters (const std::string parameter_file)
+  inline void
+  ElasticityParameterReader::read_parameters(const std::string parameter_file)
   {
     declare_parameters();
-    prm.parse_input (parameter_file);
+    prm.parse_input(parameter_file);
   }
-}
+} // namespace elasticity
 
-#endif //PEFLOW_ELASTICITY_PARAMETER_READER_H
+#endif // PEFLOW_ELASTICITY_PARAMETER_READER_H

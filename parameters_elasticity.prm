@@ -1,10 +1,13 @@
 # Listing of Parameters
 # ---------------------
 #################################################################################
-# Discretization
+# Discretization and grids:
+#    grid_flag = 0 for squares
+#              = 1 for input quads
+#              = 2 for smooth transformation        
 set degree         = 1
-set refinements   = 3
-set grid_flag      = 1
+set refinements   = 4
+set grid_flag      = 2
 
 #################################################################################
 # Physical parameters

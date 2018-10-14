@@ -32,7 +32,7 @@ int main()
     using namespace elasticity;
     using namespace biot;
 
-    MultithreadInfo::set_thread_limit();
+    MultithreadInfo::set_thread_limit(8);
 
     std::ofstream log_file("log_file.txt");
     deallog.attach(log_file);

@@ -288,35 +288,42 @@ namespace darcy
 
       for (unsigned int cycle=0; cycle<refine; ++cycle)
         {
-            if(cycle == 0){
-                if(grid){
-                    GridIn<dim> grid_in;
-                    grid_in.attach_triangulation (triangulation);
-                    std::string mesh_filename ("mesh"+std::to_string(dim)+"d.msh");
-                    std::ifstream input_file(mesh_filename);
+            if(cycle == 0)
+            {
+              if(grid)
+              {
+                  GridIn<dim> grid_in;
+                  grid_in.attach_triangulation (triangulation);
+                  std::string mesh_filename ("mesh"+std::to_string(dim)+"d.msh");
+                  std::ifstream input_file(mesh_filename);
 
-                    Assert(input_file.is_open(), ExcFileNotOpen(mesh_filename.c_str()));
-                    Assert(triangulation.dimension == dim, ExcDimensionMismatch(triangulation.dimension, dim));
+                  Assert(input_file.is_open(), ExcFileNotOpen(mesh_filename.c_str()));
+                  Assert(triangulation.dimension == dim, ExcDimensionMismatch(triangulation.dimension, dim));
 
-                    grid_in.read_msh (input_file);
-                } else {
-                    GridGenerator::hyper_cube (triangulation, 0, 1);
-                    triangulation.refine_global(1);
-                }
+                  grid_in.read_msh (input_file);
+              }
+              else
+              {
+                GridGenerator::hyper_cube (triangulation, 0, 1);
+                triangulation.refine_global(2);
+                GridTools::transform(&grid_transform<dim>, triangulation);
+              }
 
-                typename Triangulation<dim>::cell_iterator
-                        cell = triangulation.begin (),
-                        endc = triangulation.end();
-                for (; cell!=endc; ++cell)
-                    for (unsigned int face_number=0;
-                         face_number<GeometryInfo<dim>::faces_per_cell;
-                         ++face_number)
-                        if ((std::fabs(cell->face(face_number)->center()(0) - (1)) < 1e-12)
-                            ||
-                            (std::fabs(cell->face(face_number)->center()(1) - (1)) < 1e-12))
-                            cell->face(face_number)->set_boundary_id (1);
-            } else {
-                triangulation.refine_global(1);
+              typename Triangulation<dim>::cell_iterator
+                      cell = triangulation.begin (),
+                      endc = triangulation.end();
+              for (; cell!=endc; ++cell)
+                for (unsigned int face_number=0;
+                     face_number<GeometryInfo<dim>::faces_per_cell;
+                     ++face_number)
+                    if ((std::fabs(cell->face(face_number)->center()(0) - (1)) < 1e-12)
+                        ||
+                        (std::fabs(cell->face(face_number)->center()(1) - (1)) < 1e-12))
+                        cell->face(face_number)->set_boundary_id (1);
+            }
+            else
+            {
+              triangulation.refine_global(1);
             }
 
             make_grid_and_dofs();

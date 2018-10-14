@@ -33,6 +33,8 @@
 #include "../inc/elasticity_msmfe.h"
 #include "../inc/utilities.h"
 
+// TODO: Refactor accoding to hMFMFE tutorial
+
 namespace elasticity
 {
   using namespace dealii;
@@ -738,8 +740,8 @@ namespace elasticity
 
     for (unsigned int cycle=0; cycle<refine; ++cycle)
       {
-        if(cycle == 0){
-            if(grid){
+        if(cycle == 0 || grid == 2){
+            if(grid == 1){
                 GridIn<dim> grid_in;
                 grid_in.attach_triangulation (triangulation);
                 std::string mesh_filename ("mesh"+std::to_string(dim)+"d.msh");
@@ -749,13 +751,14 @@ namespace elasticity
                 Assert(triangulation.dimension == dim, ExcDimensionMismatch(triangulation.dimension, dim));
 
                 grid_in.read_msh (input_file);
-              } else {
+              } else if (grid == 0) {
                 GridGenerator::hyper_cube (triangulation, 0, 1);
-                if (dim == 3) {
-                    triangulation.refine_global(1);
-                    //GridTools::transform(&grid_transform<dim>, triangulation);
-                  } else if (dim == 2)
-                  triangulation.refine_global(1);
+                triangulation.refine_global(1);
+              } else if (grid == 2) {
+              	triangulation.clear();
+              	GridGenerator::hyper_cube (triangulation, 0, 1);
+                triangulation.refine_global(cycle+1);
+                GridTools::transform(&grid_transform_h2<dim>, triangulation);
               }
 
             typename Triangulation<dim>::cell_iterator

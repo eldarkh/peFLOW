@@ -35,6 +35,8 @@
 #include "../inc/darcy_mfmfe.h"
 #include "../inc/utilities.h"
 
+// TODO: Refactor accoding to hMFMFE tutorial
+
 namespace darcy
 {
   using namespace dealii;
@@ -46,7 +48,7 @@ namespace darcy
   MultipointMixedDarcyProblem<dim>::MultipointMixedDarcyProblem (const unsigned int degree, ParameterHandler &param)
           :
           DarcyProblem<dim>(degree, param,
-                       FESystem<dim>(FE_RT_Bubbles<dim>(degree), 1, FE_DGQ<dim>(degree-1), 1))
+                            FESystem<dim>(FE_RT_Bubbles<dim>(degree), 1, FE_DGQ<dim>(degree-1), 1))
   {}
 
 
@@ -169,6 +171,7 @@ namespace darcy
     for (unsigned int q=0; q<n_q_points; ++q)
     {
       Point<dim> p = scratch_data.fe_values.quadrature_point(q);
+      round_point(p);
 
       for (unsigned int i=0; i<dofs_per_cell; ++i)
       {
@@ -202,6 +205,7 @@ namespace darcy
     {
       std::set<types::global_dof_index> vel_indices;
       Point<dim> p = scratch_data.fe_values.quadrature_point(q);
+      round_point(p);
       for (unsigned int i=0; i<dofs_per_cell; ++i)
       {
         const Tensor<1,dim> phi_i_u     = scratch_data.fe_values[velocity].value (i, q);
@@ -336,8 +340,8 @@ namespace darcy
 
   template <int dim>
   void MultipointMixedDarcyProblem<dim>::vertex_elimination(const typename MapPointMatrix<dim>::iterator &n_it,
-                                                  VertexAssemblyScratchData &scratch_data,
-                                                  VertexEliminationCopyData &copy_data)
+                                                            VertexAssemblyScratchData &scratch_data,
+                                                            VertexEliminationCopyData &copy_data)
   {
     // Matrix for each component
     unsigned int n_edges = velocity_indices.at((*n_it).first).size();
@@ -467,8 +471,8 @@ namespace darcy
 //MultipointMixedDarcyProblem: Solving for velocity
   template <int dim>
   void MultipointMixedDarcyProblem<dim>::velocity_assembly (const typename MapPointMatrix<dim>::iterator &n_it,
-                                                  VertexAssemblyScratchData                         &scratch_data,
-                                                  VertexEliminationCopyData                         &copy_data)
+                                                            VertexAssemblyScratchData                         &scratch_data,
+                                                            VertexEliminationCopyData                         &copy_data)
   {
     unsigned int n_edges = velocity_indices.at((*n_it).first).size();
     unsigned int n_cells = pressure_indices.at((*n_it).first).size();
@@ -603,13 +607,8 @@ namespace darcy
         else
         {
           GridGenerator::hyper_cube (triangulation, 0, 1);
-          if (dim == 3)
-          {
-            triangulation.refine_global(2);
-            GridTools::transform(&grid_transform<dim>, triangulation);
-          }
-          else if (dim == 2)
-            triangulation.refine_global(1);
+          triangulation.refine_global(2);
+          GridTools::transform(&grid_transform<dim>, triangulation);
         }
 
         typename Triangulation<dim>::cell_iterator

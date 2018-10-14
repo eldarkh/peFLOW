@@ -8,19 +8,21 @@
 #ifndef PEFLOW_ELASTICITY_MSMFE_H
 #define PEFLOW_ELASTICITY_MSMFE_H
 
-#include <deal.II/lac/block_sparse_matrix.h>
-#include <deal.II/lac/block_vector.h>
-#include <deal.II/grid/tria.h>
+#include <deal.II/base/convergence_table.h>
+#include <deal.II/base/timer.h>
 
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/fe_values.h>
 
-#include <deal.II/base/convergence_table.h>
-#include <deal.II/base/timer.h>
+#include <deal.II/grid/tria.h>
+
+#include <deal.II/lac/block_sparse_matrix.h>
+#include <deal.II/lac/block_vector.h>
+
+#include <unordered_map>
 
 #include "../inc/problem.h"
 #include "utilities.h"
-#include <unordered_map>
 
 namespace elasticity
 {
@@ -59,12 +61,15 @@ namespace elasticity
      * Class constructor takes degree and reference to parameter handle
      * as arguments
      */
-    MultipointMixedElasticityProblem (const unsigned int degree,  ParameterHandler &param);
+    MultipointMixedElasticityProblem(const unsigned int degree,
+                                     ParameterHandler & param);
 
     /*
      * Main driver function
      */
-    virtual void run (const unsigned int refine, const unsigned int grid = 0);
+    virtual void
+    run(const unsigned int refine, const unsigned int grid = 0);
+
   private:
     /*
      * Data structure holding the information needed by threads
@@ -72,21 +77,21 @@ namespace elasticity
      */
     struct VertexAssemblyScratchData
     {
-      VertexAssemblyScratchData (const FiniteElement<dim> &fe,
-                                 const Triangulation<dim>       &tria,
-                                 const Quadrature<dim> &quad,
-                                 const Quadrature<dim-1> &f_quad,
-                                 const LameCoefficients<dim> &lame, 
-                                 Functions::ParsedFunction<dim> *bc,
-                                 Functions::ParsedFunction<dim> *rhs);
+      VertexAssemblyScratchData(const FiniteElement<dim> &      fe,
+                                const Triangulation<dim> &      tria,
+                                const Quadrature<dim> &         quad,
+                                const Quadrature<dim - 1> &     f_quad,
+                                const LameCoefficients<dim> &   lame,
+                                Functions::ParsedFunction<dim> *bc,
+                                Functions::ParsedFunction<dim> *rhs);
 
-      VertexAssemblyScratchData (const VertexAssemblyScratchData &scratch_data);
+      VertexAssemblyScratchData(const VertexAssemblyScratchData &scratch_data);
 
-      FEValues<dim>       fe_values;
-      FEFaceValues<dim>   fe_face_values;
-      std::vector<int>    n_faces_at_vertex;
+      FEValues<dim>     fe_values;
+      FEFaceValues<dim> fe_face_values;
+      std::vector<int>  n_faces_at_vertex;
 
-      LameCoefficients<dim> lame;
+      LameCoefficients<dim>           lame;
       Functions::ParsedFunction<dim> *bc;
       Functions::ParsedFunction<dim> *rhs;
 
@@ -109,9 +114,11 @@ namespace elasticity
     /*
      * Compute local cell contributions
      */
-    void assemble_system_cell (const typename DoFHandler<dim>::active_cell_iterator &cell,
-                               VertexAssemblyScratchData                            &scratch_data,
-                               VertexAssemblyCopyData                               &copy_data);
+    void
+    assemble_system_cell(
+      const typename DoFHandler<dim>::active_cell_iterator &cell,
+      VertexAssemblyScratchData &                           scratch_data,
+      VertexAssemblyCopyData &                              copy_data);
     /*
      * Rearrange cell contributions to nodal associated blocks
      */
@@ -127,52 +134,87 @@ namespace elasticity
       Vector<double>     stress_rhs;
       Vector<double>     rotation_rhs;
       // Recovery
-      Vector<double>     vertex_stress_solution;
-      Vector<double>     vertex_rotation_solution;
+      Vector<double> vertex_stress_solution;
+      Vector<double> vertex_rotation_solution;
       // Indexing
-      Point<dim>         p;
+      Point<dim> p;
     };
-    void copy_cell_to_vertex (const VertexAssemblyCopyData &copy_data);
-    void vertex_assembly ();
+    void
+    copy_cell_to_vertex(const VertexAssemblyCopyData &copy_data);
+    void
+    vertex_assembly();
 
     /*
      * Assemble and solve displacement cell-centered matrix
      */
-    void vertex_elimination (const typename MapPointMatrix<dim>::iterator &n_it,
-                             VertexAssemblyScratchData                    &scratch_data,
-                             VertexEliminationCopyData                    &copy_data);
-    void make_cell_centered_sp ();
-    void copy_vertex_to_system (const VertexEliminationCopyData &copy_data);
-    void displacement_assembly ();
-    void solve_displacement ();
+    void
+    vertex_elimination(const typename MapPointMatrix<dim>::iterator &n_it,
+                       VertexAssemblyScratchData &scratch_data,
+                       VertexEliminationCopyData &copy_data);
+    void
+    make_cell_centered_sp();
+    void
+    copy_vertex_to_system(const VertexEliminationCopyData &copy_data);
+    void
+    displacement_assembly();
+    void
+    solve_displacement();
 
     /*
      * Recover the stress and rotation solutions
      */
-    void sr_assembly (const typename MapPointMatrix<dim>::iterator &n_it,
-                                   VertexAssemblyScratchData                  &scratch_data,
-                                   VertexEliminationCopyData                  &copy_data);
-    void copy_vertex_sr_to_global (const VertexEliminationCopyData &copy_data);
-    void sr_recovery ();
+    void
+    sr_assembly(const typename MapPointMatrix<dim>::iterator &n_it,
+                VertexAssemblyScratchData &                   scratch_data,
+                VertexEliminationCopyData &                   copy_data);
+    void
+    copy_vertex_sr_to_global(const VertexEliminationCopyData &copy_data);
+    void
+    sr_recovery();
 
     /*
      * Clear all hash tables to start next refinement cycle
      */
-    void reset_data_structures ();
+    void
+    reset_data_structures();
 
     /*
      * Data structures and internal parameters
      */
-    SparsityPattern cell_centered_sp;
+    SparsityPattern      cell_centered_sp;
     SparseMatrix<double> displ_system_matrix;
-    Vector<double> displ_rhs;
+    Vector<double>       displ_rhs;
 
-    std::unordered_map<Point<dim>, FullMatrix<double>, hash_points<dim>, points_equal<dim>> displacement_matrix;
-    std::unordered_map<Point<dim>, FullMatrix<double>, hash_points<dim>, points_equal<dim>> rotation_matrix;
-    std::unordered_map<Point<dim>, FullMatrix<double>, hash_points<dim>, points_equal<dim>> A_inverse;
-    std::unordered_map<Point<dim>, FullMatrix<double>, hash_points<dim>, points_equal<dim>> CAC_inverse;
-    std::unordered_map<Point<dim>, Vector<double>, hash_points<dim>, points_equal<dim>> stress_rhs;
-    std::unordered_map<Point<dim>, Vector<double>, hash_points<dim>, points_equal<dim>> rotation_rhs;
+    std::unordered_map<Point<dim>,
+                       FullMatrix<double>,
+                       hash_points<dim>,
+                       points_equal<dim>>
+      displacement_matrix;
+    std::unordered_map<Point<dim>,
+                       FullMatrix<double>,
+                       hash_points<dim>,
+                       points_equal<dim>>
+      rotation_matrix;
+    std::unordered_map<Point<dim>,
+                       FullMatrix<double>,
+                       hash_points<dim>,
+                       points_equal<dim>>
+      A_inverse;
+    std::unordered_map<Point<dim>,
+                       FullMatrix<double>,
+                       hash_points<dim>,
+                       points_equal<dim>>
+      CAC_inverse;
+    std::unordered_map<Point<dim>,
+                       Vector<double>,
+                       hash_points<dim>,
+                       points_equal<dim>>
+      stress_rhs;
+    std::unordered_map<Point<dim>,
+                       Vector<double>,
+                       hash_points<dim>,
+                       points_equal<dim>>
+      rotation_rhs;
 
     MapPointMatrix<dim> vertex_matrix;
     MapPointVector<dim> vertex_rhs;
@@ -188,6 +230,6 @@ namespace elasticity
     Vector<double> rotation_solution;
   };
 
-}
+} // namespace elasticity
 
-#endif //PEFLOW_ELASTICITY_MSMFE_H
+#endif // PEFLOW_ELASTICITY_MSMFE_H
