@@ -48,7 +48,8 @@ namespace biot
 
   // MixedBiotProblem: class constructor
   template <int dim>
-  MixedBiotProblem<dim>::MixedBiotProblem (const unsigned int degree, ParameterHandler &param, const double time_step,
+  MixedBiotProblem<dim>::MixedBiotProblem (const unsigned int degree, ParameterHandler &param, 
+                                           const double time_step,
                                            const unsigned int num_time_steps)
     :
       prm(param),
@@ -633,13 +634,6 @@ namespace biot
       A_direct.initialize(system_matrix);
 
     A_direct.vmult (solution, system_rhs);
-
-//    deallog << "Solution norms: " << solution.block(0).l2_norm() << " "
-//            << solution.block(1).l2_norm() << " "
-//            << solution.block(2).l2_norm() << " "
-//            << solution.block(3).l2_norm() << " "
-//            << solution.block(4).l2_norm() << " "
-//            << std::endl;
   }
 
 

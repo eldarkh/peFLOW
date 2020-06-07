@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2016 - 2017 Eldar Khattatov
+// Copyright (C) 2016 - 2020 Eldar Khattatov
 //
 // This file is part of peFLOW.
 //
@@ -43,12 +43,15 @@ namespace elasticity
 
   // MultipointMixedElasticityProblem: class constructor
   template <int dim>
-  MultipointMixedElasticityProblem<dim>::MultipointMixedElasticityProblem (const unsigned int degree, ParameterHandler &param)
+  MultipointMixedElasticityProblem<dim>::MultipointMixedElasticityProblem (const unsigned int degree, 
+                                                                           ParameterHandler &param)
     :
-    ElasticityProblem<dim>(degree, param,
+    ElasticityProblem<dim>(degree, 
+                           param,
                            FESystem<dim>(FE_RT_Bubbles<dim>(degree), dim,
                                          FE_DGQ<dim>(degree-1), dim,
-                                         FE_Q<dim>(degree), static_cast<int>(0.5*dim*(dim-1))))
+                                         FE_Q<dim>(degree), static_cast<int>(0.5*dim*(dim-1)))),
+    b_scaled_rotation(false)
   {}
 
 
@@ -124,20 +127,20 @@ namespace elasticity
   template <int dim>
   void MultipointMixedElasticityProblem<dim>::copy_cell_to_vertex (const VertexAssemblyCopyData &copy_data)
   {
-    for (auto m : copy_data.cell_mat) {
-        for (auto p : m.second)
+    for (const auto &m : copy_data.cell_mat) {
+        for (const auto &p : m.second)
           vertex_matrix[m.first][p.first] += p.second;
 
-        for (auto p : copy_data.cell_vec.at(m.first))
+        for (const auto &p : copy_data.cell_vec.at(m.first))
           vertex_rhs[m.first][p.first] += p.second;
 
-        for (auto p : copy_data.local_displ_indices.at(m.first))
+        for (const auto &p : copy_data.local_displ_indices.at(m.first))
           displacement_indices[m.first].insert(p);
 
-        for (auto p : copy_data.local_stress_indices.at(m.first))
+        for (const auto &p : copy_data.local_stress_indices.at(m.first))
           stress_indices[m.first].insert(p);
 
-        for (auto p : copy_data.local_rotation_indices.at(m.first))
+        for (const auto &p : copy_data.local_rotation_indices.at(m.first))
           rotation_indices[m.first].insert(p);
       }
   }
@@ -145,8 +148,8 @@ namespace elasticity
   // Function to assemble on a cell
   template <int dim>
   void MultipointMixedElasticityProblem<dim>::assemble_system_cell (const typename DoFHandler<dim>::active_cell_iterator &cell,
-                                                                    VertexAssemblyScratchData                         &scratch_data,
-                                                                    VertexAssemblyCopyData                            &copy_data)
+                                                                    VertexAssemblyScratchData                            &scratch_data,
+                                                                    VertexAssemblyCopyData                               &copy_data)
   {
     const unsigned int rotation_dim = static_cast<int>(0.5*dim*(dim-1));
 
@@ -164,7 +167,6 @@ namespace elasticity
     cell->get_dof_indices (copy_data.local_dof_indices);
 
     scratch_data.fe_values.reinit (cell);
-
 
     // Stress and rotation DoFs vectors
     std::vector<FEValuesExtractors::Vector> stresses(dim, FEValuesExtractors::Vector());
@@ -234,6 +236,9 @@ namespace elasticity
           }
       }
 
+    // Only needed for dsc params
+    const Point<dim> center = cell->center();
+    
     // Assemble coercive and asymmetry terms and incorporate div terms
     for (unsigned int q=0; q<n_q_points; ++q)
       {
@@ -256,43 +261,60 @@ namespace elasticity
         for (unsigned int i=0; i<dofs_per_cell; ++i)
           {
             Point<dim> point = scratch_data.fe_values.get_quadrature_points()[q];
-            const double mu = scratch_data.lame.mu_value(point);
-            const double lambda = scratch_data.lame.lambda_value(point);
+
+            // This is not robust, but right now if we use scaled roation we have dsc params
+            // so use value from cell center
+            double mu, lambda;
+            if (b_scaled_rotation)
+            { 
+              mu = scratch_data.lame.mu_value(center);
+              lambda = scratch_data.lame.lambda_value(center);
+            }
+            else
+            {
+              mu = scratch_data.lame.mu_value(point);
+              lambda = scratch_data.lame.lambda_value(point);
+            }
+            
             Tensor<2,dim> asigma = compliance_tensor_stress<dim>(phi_i_s[i], mu, lambda);
             for (unsigned int j=i; j<dofs_per_cell; ++j)
               {
                 Tensor<2,dim> sigma = make_tensor(phi_i_s[j]);
                 double mass_term = (scalar_product(asigma, sigma)) * scratch_data.fe_values.JxW(q);
-                double sr_term = (scalar_product(phi_i_p[i], make_asymmetry_tensor(phi_i_s[j]))
-                                  + scalar_product(phi_i_p[j], make_asymmetry_tensor(phi_i_s[i])))
-                    * scratch_data.fe_values.JxW(q);
-
+                double sr_term = 0.0;
+                
+                if (b_scaled_rotation)
+                {
+                  Tensor<2,dim> atau = compliance_tensor_stress<dim>(phi_i_s[j], mu, lambda);
+                  sr_term = (scalar_product(phi_i_p[i], make_asymmetry_tensor(atau)) 
+                            + scalar_product(phi_i_p[j], make_asymmetry_tensor(asigma))) * scratch_data.fe_values.JxW(q);
+                }
+                else
+                  sr_term = (scalar_product(phi_i_p[i], make_asymmetry_tensor(phi_i_s[j])) 
+                            + scalar_product(phi_i_p[j], make_asymmetry_tensor(phi_i_s[i]))) * scratch_data.fe_values.JxW(q);
 
                 if (fabs(mass_term) > 1.e-12)
                   {
-                    copy_data.cell_mat[p][std::make_pair(copy_data.local_dof_indices[i], copy_data.local_dof_indices[j])] +=
-                        mass_term;
+                    copy_data.cell_mat[p][std::make_pair(copy_data.local_dof_indices[i], copy_data.local_dof_indices[j])] += mass_term;
                     stress_indices.insert(i);
                     copy_data.local_stress_indices[p].insert(copy_data.local_dof_indices[j]);
                   }
 
                 if (fabs(sr_term) > 1.e-12 && copy_data.local_dof_indices[i] > n_s)
                   {
-                    copy_data.cell_mat[p][std::make_pair(copy_data.local_dof_indices[j], copy_data.local_dof_indices[i])] +=
-                        sr_term;
+                    copy_data.cell_mat[p][std::make_pair(copy_data.local_dof_indices[j], copy_data.local_dof_indices[i])] += sr_term;
                     copy_data.local_rotation_indices[p].insert(copy_data.local_dof_indices[i]);
                   }
                 else if (fabs(sr_term) > 1.e-12 && copy_data.local_dof_indices[j] > n_s)
                   {
-                    copy_data.cell_mat[p][std::make_pair(copy_data.local_dof_indices[i], copy_data.local_dof_indices[j])] +=
-                        sr_term;
+                    copy_data.cell_mat[p][std::make_pair(copy_data.local_dof_indices[i], copy_data.local_dof_indices[j])] += sr_term;
                     copy_data.local_rotation_indices[p].insert(copy_data.local_dof_indices[j]);
                   }
               }
           }
 
-        for (auto i : stress_indices)
-          for (auto el : div_map[i])
+        for (const auto &i : stress_indices)
+          for (const auto &el : div_map[i])
             if (fabs(el.second) > 1.e-12) {
                 copy_data.cell_mat[p][std::make_pair(copy_data.local_dof_indices[i],
                                                      copy_data.local_dof_indices[el.first])] += el.second;
@@ -327,7 +349,7 @@ namespace elasticity
               }
         }
 
-    for (auto m : copy_data.cell_vec)
+    for (const auto &m : copy_data.cell_vec)
       for (unsigned int i=0; i<dofs_per_cell; ++i)
         if (fabs(displ_bc[copy_data.local_dof_indices[i]]) > 1.e-12)
           copy_data.cell_vec[m.first][copy_data.local_dof_indices[i]] += displ_bc[copy_data.local_dof_indices[i]];
@@ -338,10 +360,10 @@ namespace elasticity
   template <int dim>
   void MultipointMixedElasticityProblem<dim>::vertex_assembly()
   {
-    Functions::ParsedFunction<dim> *mu                  = new Functions::ParsedFunction<dim>(1);
-    Functions::ParsedFunction<dim> *lambda              = new Functions::ParsedFunction<dim>(1);
-    Functions::ParsedFunction<dim> *bc       = new Functions::ParsedFunction<dim>(dim);
-    Functions::ParsedFunction<dim> *rhs      = new Functions::ParsedFunction<dim>(dim);
+    Functions::ParsedFunction<dim> *mu     = new Functions::ParsedFunction<dim>(1);
+    Functions::ParsedFunction<dim> *lambda = new Functions::ParsedFunction<dim>(1);
+    Functions::ParsedFunction<dim> *bc     = new Functions::ParsedFunction<dim>(dim);
+    Functions::ParsedFunction<dim> *rhs    = new Functions::ParsedFunction<dim>(dim);
 
     prm.enter_subsection(std::string("lambda ") + Utilities::int_to_string(dim)+std::string("D"));
     lambda->parse_parameters(prm);
@@ -373,7 +395,8 @@ namespace elasticity
     QGauss<dim-1> face_quad(degree);
 
     n_s = 0, n_u = 0, n_p = 0;
-    for (int i=0; i<dim; ++i){
+    for (int i=0; i<dim; ++i)
+      {
         n_s += dofs_per_component[i*dim];
         n_u += dofs_per_component[dim*dim+i];
         if (dim == 2)
@@ -381,7 +404,6 @@ namespace elasticity
         else if (dim == 3)
           n_p += dofs_per_component[dim*dim+dim+i];
       }
-
 
 
     displ_rhs.reinit(n_u);
@@ -409,7 +431,7 @@ namespace elasticity
     std::set<types::global_dof_index>::iterator ui_it, uj_it;
 
     unsigned int i, j;
-    for (auto el : vertex_matrix)
+    for (const auto &el : vertex_matrix)
       for (ui_it = displacement_indices[el.first].begin(), i = 0;
            ui_it != displacement_indices[el.first].end();
            ++ui_it, ++i)
@@ -502,10 +524,12 @@ namespace elasticity
     Vector<double> tmp_rhs2(n_cells);
     Vector<double> tmp_rhs3(rotation_dim);
     Vector<double> tmp_rhs4(rotation_dim);
+    
     // Contribution from first elimination step
     copy_data.Ainverse.vmult(tmp_rhs1, copy_data.stress_rhs, false);
     copy_data.displacement_matrix.Tvmult(tmp_rhs2, tmp_rhs1, false);
     copy_data.vertex_displ_rhs.sadd(1.0, tmp_rhs2);
+    
     // Contribution from second elimination step
     copy_data.rotation_matrix.Tvmult(tmp_rhs3, tmp_rhs1, false);
     copy_data.CACinverse.vmult(tmp_rhs4, tmp_rhs3, false);
@@ -543,10 +567,10 @@ namespace elasticity
   template <int dim>
   void MultipointMixedElasticityProblem<dim>::displacement_assembly()
   {
-    Functions::ParsedFunction<dim> *mu                  = new Functions::ParsedFunction<dim>(1);
-    Functions::ParsedFunction<dim> *lambda              = new Functions::ParsedFunction<dim>(1);
-    Functions::ParsedFunction<dim> *bc       = new Functions::ParsedFunction<dim>(dim);
-    Functions::ParsedFunction<dim> *rhs      = new Functions::ParsedFunction<dim>(dim);
+    Functions::ParsedFunction<dim> *mu     = new Functions::ParsedFunction<dim>(1);
+    Functions::ParsedFunction<dim> *lambda = new Functions::ParsedFunction<dim>(1);
+    Functions::ParsedFunction<dim> *bc     = new Functions::ParsedFunction<dim>(dim);
+    Functions::ParsedFunction<dim> *rhs    = new Functions::ParsedFunction<dim>(dim);
 
     prm.enter_subsection(std::string("lambda ") + Utilities::int_to_string(dim)+std::string("D"));
     lambda->parse_parameters(prm);
@@ -662,10 +686,10 @@ namespace elasticity
   template <int dim>
   void MultipointMixedElasticityProblem<dim>::sr_recovery()
   {
-    Functions::ParsedFunction<dim> *mu                  = new Functions::ParsedFunction<dim>(1);
-    Functions::ParsedFunction<dim> *lambda              = new Functions::ParsedFunction<dim>(1);
-    Functions::ParsedFunction<dim> *bc       = new Functions::ParsedFunction<dim>(dim);
-    Functions::ParsedFunction<dim> *rhs      = new Functions::ParsedFunction<dim>(dim);
+    Functions::ParsedFunction<dim> *mu     = new Functions::ParsedFunction<dim>(1);
+    Functions::ParsedFunction<dim> *lambda = new Functions::ParsedFunction<dim>(1);
+    Functions::ParsedFunction<dim> *bc     = new Functions::ParsedFunction<dim>(dim);
+    Functions::ParsedFunction<dim> *rhs    = new Functions::ParsedFunction<dim>(dim);
 
     prm.enter_subsection(std::string("lambda ") + Utilities::int_to_string(dim)+std::string("D"));
     lambda->parse_parameters(prm);
@@ -740,7 +764,7 @@ namespace elasticity
 
     for (unsigned int cycle=0; cycle<refine; ++cycle)
       {
-        if(cycle == 0 || grid == 2){
+        if(cycle == 0 || grid >= 3){
             if(grid == 1){
                 GridIn<dim> grid_in;
                 grid_in.attach_triangulation (triangulation);
@@ -755,11 +779,36 @@ namespace elasticity
                 GridGenerator::hyper_cube (triangulation, 0, 1);
                 triangulation.refine_global(1);
               } else if (grid == 2) {
+                GridGenerator::subdivided_hyper_cube(triangulation, 3, 0.0, 1.0);
+              } else if (grid == 3) {
               	triangulation.clear();
               	GridGenerator::hyper_cube (triangulation, 0, 1);
                 triangulation.refine_global(cycle+1);
                 GridTools::transform(&grid_transform_h2<dim>, triangulation);
-              }
+              } else if (grid > 3) {
+                // h^k uniform perturbation
+              	triangulation.clear();
+              	GridGenerator::hyper_cube (triangulation, 0, 1);
+                const unsigned int refinements = cycle+2;
+                triangulation.refine_global(refinements);
+
+                double reg = 0.0;
+                if (grid == 4)
+                  reg = 2.0;
+                else if (grid == 5)
+                  reg = 1.5;
+                else if (grid == 6)
+                  reg = 1.0;
+
+                auto rand_engine = std::mt19937(77);
+                std::mt19937* const rand_engine_ptr = &rand_engine;
+                auto func = std::bind(grid_transform_unit_hk<dim>, 
+                                      std::placeholders::_1, 
+                                      rand_engine_ptr, 
+                                      reg, 
+                                      1.0/std::pow(2,refinements));
+                GridTools::transform(func, triangulation);
+              } 
 
             typename Triangulation<dim>::cell_iterator
                 cell = triangulation.begin (),
@@ -769,8 +818,7 @@ namespace elasticity
                    face_number<GeometryInfo<dim>::faces_per_cell;
                    ++face_number)
                 if ((std::fabs(cell->face(face_number)->center()(0) - (1)) < 1e-12)
-                    ||
-                    (std::fabs(cell->face(face_number)->center()(1) - (1)) < 1e-12))
+                    || (std::fabs(cell->face(face_number)->center()(1) - (1)) < 1e-12))
                   cell->face(face_number)->set_boundary_id (1);
           } else {
             triangulation.refine_global(1);
@@ -779,14 +827,14 @@ namespace elasticity
         vertex_assembly();
         make_cell_centered_sp();
         displacement_assembly();
-        solve_displacement ();
-        sr_recovery ();
-        compute_errors (cycle);
-        output_results (cycle, refine);
-        reset_data_structures ();
+        solve_displacement();
+        sr_recovery();
+        compute_errors(cycle);
+        output_results(cycle, refine);
+        reset_data_structures();
 
-        computing_timer.print_summary ();
-        computing_timer.reset ();
+        computing_timer.print_summary();
+        computing_timer.reset();
       }
   }
 

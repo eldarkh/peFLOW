@@ -17,6 +17,8 @@
 #include "../inc/elasticity_mfe.h"
 #include "../inc/elasticity_msmfe.h"
 
+#include <memory>
+#include <iostream>
 
 /*
  * Main driver function. Chooses the model and dimension.
@@ -53,8 +55,8 @@ int main()
     std::cin >> dim;
 
     ParameterHandler prm;
-    Problem<2> *problem2d;
-    Problem<3> *problem3d;
+    std::unique_ptr<Problem<2>> problem2d;
+    std::unique_ptr<Problem<3>> problem3d;
 
     if(model == 1)
     {
@@ -70,12 +72,12 @@ int main()
       {
         case 2:
           std::cout << "Mixed Darcy, 2D case: " << std::endl;
-          problem2d = new DarcyMFE<2>(degree, prm);
+          problem2d = std::make_unique<DarcyMFE<2>>(degree, prm);
           problem2d->run(refinements, grid);
           break;
         case 3:
           std::cout << "Mixed Darcy, 3D case: " << std::endl;
-          problem3d = new DarcyMFE<3>(degree, prm);
+          problem3d = std::make_unique<DarcyMFE<3>>(degree, prm);
           problem3d->run(refinements, grid);
           break;
         default:
@@ -84,7 +86,7 @@ int main()
     }
     else if(model == 2)
     {
-      DarcyParameterReader   param(prm);
+      DarcyParameterReader param(prm);
       param.read_parameters("parameters_darcy.prm");
 
       // Get parameters
@@ -96,12 +98,12 @@ int main()
       {
         case 2:
           std::cout << "Multipoint Mixed Darcy, 2D case: " << std::endl;
-          problem2d = new MultipointMixedDarcyProblem<2>(degree, prm);
+          problem2d = std::make_unique<MultipointMixedDarcyProblem<2>>(degree, prm);
           problem2d->run(refinements, grid);
           break;
         case 3:
           std::cout << "Multipoint Mixed Darcy, 3D case: " << std::endl;
-          problem3d = new MultipointMixedDarcyProblem<3>(degree, prm);
+          problem3d = std::make_unique<MultipointMixedDarcyProblem<3>>(degree, prm);
           problem3d->run(refinements, grid);
           break;
         default:
@@ -110,7 +112,7 @@ int main()
     }
     else if(model == 3)
     {
-      ElasticityParameterReader   param(prm);
+      ElasticityParameterReader param(prm);
       param.read_parameters("parameters_elasticity.prm");
 
       // Get parameters
@@ -122,12 +124,12 @@ int main()
       {
         case 2:
           std::cout << "Mixed Linear Elasticity, 2D case: " << std::endl;
-          problem2d = new MixedElasticityProblem<2>(degree, prm);
+          problem2d = std::make_unique<MixedElasticityProblem<2>>(degree, prm);
           problem2d->run(refinements, grid);
           break;
         case 3:
           std::cout << "Mixed Linear Elasticity, 3D case: " << std::endl;
-          problem3d = new MixedElasticityProblem<3>(degree, prm);
+          problem3d = std::make_unique<MixedElasticityProblem<3>>(degree, prm);
           problem3d->run(refinements, grid);
           break;
         default:
@@ -136,8 +138,8 @@ int main()
     }
     else if(model == 4)
     {
-      ElasticityParameterReader   param(prm);
-      param.read_parameters("parameters_elasticity.prm");
+      ElasticityParameterReader param(prm);
+      param.read_parameters("parameters_elasticity_dsc.prm");
 
       // Get parameters
       const unsigned int degree = prm.get_integer("degree");
@@ -147,13 +149,19 @@ int main()
       switch(dim)
       {
         case 2:
+        {
           std::cout << "Multipoint Mixed Linear Elasticity, 2D case: " << std::endl;
-          problem2d = new MultipointMixedElasticityProblem<2>(degree, prm);
-          problem2d->run(refinements, grid);
+          
+          // ther rest needs to be done this way too, don't remember what the plab was
+          // with abstract base and ptrs
+          MultipointMixedElasticityProblem<2> msmfe2d(degree, prm);
+          msmfe2d.set_scaled_rotation(true);
+          msmfe2d.run(refinements, grid);
           break;
+        }
         case 3:
           std::cout << "Multipoint Mixed Linear Elasticity, 3D case: " << std::endl;
-          problem3d = new MultipointMixedElasticityProblem<3>(degree, prm);
+          problem3d = std::make_unique<MultipointMixedElasticityProblem<3>>(degree, prm);
           problem3d->run(refinements, grid);
           break;
         default:
@@ -176,28 +184,19 @@ int main()
       {
         case 2:
           std::cout << "Mixed Biot, 2D case: " << std::endl;
-          problem2d = new MixedBiotProblem<2>(degree, prm, time_step, num_time_steps);
+          problem2d = std::make_unique<MixedBiotProblem<2>>(degree, prm, time_step, num_time_steps);
           problem2d->run(refinements, grid);
           break;
         case 3:
           std::cout << "Mixed Biot, 3D case: " << std::endl;
           Assert(false, ExcNotImplemented());
-          problem3d = new MixedBiotProblem<3>(degree, prm, time_step, num_time_steps);
+          //NOTE: it is implemented but not tested...
+          problem3d = std::make_unique<MixedBiotProblem<3>>(degree, prm, time_step, num_time_steps);
           problem3d->run(refinements, grid);
           break;
         default:
           Assert(false, ExcNotImplemented());
       }
-    }
-
-    switch (dim)
-    {
-      case 2:
-        delete problem2d;
-        break;
-      case 3:
-        delete problem3d;
-        break;
     }
 
   } catch (std::exception &exc) {

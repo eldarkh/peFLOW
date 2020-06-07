@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2016 - 2017 Eldar Khattatov
+// Copyright (C) 2016 - 2020 Eldar Khattatov
 //
 // This file is part of peFLOW.
 //
@@ -120,19 +120,19 @@ namespace darcy
   template <int dim>
   void MultipointMixedDarcyProblem<dim>::copy_cell_to_vertex (const VertexAssemblyCopyData &copy_data)
   {
-    for (auto m : copy_data.cell_mat)
+    for (const auto &m : copy_data.cell_mat)
     {
-      for (auto p : m.second)
+      for (const auto &p : m.second)
         vertex_matrix[m.first][p.first] += p.second;
 
-      for (auto p : copy_data.cell_vec.at(m.first))
+      for (const auto &p : copy_data.cell_vec.at(m.first))
         vertex_rhs[m.first][p.first] += p.second;
 
-      for (auto p : copy_data.local_pres_indices.at(m.first))
+      for (const auto &p : copy_data.local_pres_indices.at(m.first))
         pressure_indices[m.first].insert(p);
 
 
-      for (auto p : copy_data.local_vel_indices.at(m.first))
+      for (const auto &p : copy_data.local_vel_indices.at(m.first))
         velocity_indices[m.first].insert(p);
     }
   }
@@ -224,8 +224,8 @@ namespace darcy
         }
       }
 
-      for (auto i : vel_indices)
-        for (auto el : div_map[i]) {
+      for (const auto &i : vel_indices)
+        for (const auto &el : div_map[i]) {
           if (fabs(el.second) > 1.e-12) {
             copy_data.cell_mat[p][std::make_pair(copy_data.local_dof_indices[i],
                                                  copy_data.local_dof_indices[el.first])] += el.second;
@@ -256,7 +256,7 @@ namespace darcy
         }
       }
 
-    for (auto m : copy_data.cell_vec)
+    for (const auto &m : copy_data.cell_vec)
       for (unsigned int i=0; i<dofs_per_cell; ++i)
         if (fabs(pres_bc[copy_data.local_dof_indices[i]]) > 1.e-12)
           copy_data.cell_vec[m.first][copy_data.local_dof_indices[i]] += pres_bc[copy_data.local_dof_indices[i]];
@@ -321,7 +321,7 @@ namespace darcy
 
     std::set<types::global_dof_index>::iterator pi_it, pj_it;
     unsigned int i, j;
-    for (auto el : vertex_matrix)
+    for (const auto &el : vertex_matrix)
       for (pi_it = pressure_indices[el.first].begin(), i = 0;
            pi_it != pressure_indices[el.first].end();
            ++pi_it, ++i) {

@@ -16,31 +16,32 @@ namespace biot
 {
   using namespace dealii;
 
-  class BiotParameterReader : public Subscriptor
+class BiotParameterReader : public Subscriptor
   {
   public:
-    BiotParameterReader(ParameterHandler &paramhandler)
-      : prm(paramhandler)
-    {}
-    inline void
-    read_parameters(const std::string);
-
+    BiotParameterReader(ParameterHandler &paramhandler) : prm(paramhandler) {}
+    inline void read_parameters(const std::string);
   private:
-    inline void
-                      declare_parameters();
+    inline void declare_parameters();
     ParameterHandler &prm;
   };
 
-  inline void
-  BiotParameterReader::declare_parameters()
+  inline void BiotParameterReader::declare_parameters()
   {
-    prm.declare_entry("degree", "0", Patterns::Integer());
-    prm.declare_entry("refinements", "1", Patterns::Integer());
-    prm.declare_entry("grid_flag", "0", Patterns::Integer());
-    prm.declare_entry("time_step", "0.1", Patterns::Double());
-    prm.declare_entry("num_time_steps", "1", Patterns::Integer());
-    prm.declare_entry("alpha", "1.0", Patterns::Double());
-    prm.declare_entry("Storativity", "1.0", Patterns::Double());
+    prm.declare_entry("degree", "0",
+                      Patterns::Integer());
+    prm.declare_entry("refinements", "1",
+                      Patterns::Integer());
+    prm.declare_entry("grid_flag", "0",
+                      Patterns::Integer());
+    prm.declare_entry("time_step", "0.1",
+                      Patterns::Double());
+    prm.declare_entry("num_time_steps", "1",
+                      Patterns::Integer());
+    prm.declare_entry("alpha", "1.0",
+                      Patterns::Double());
+    prm.declare_entry("Storativity", "1.0",
+                      Patterns::Double());
 
     prm.enter_subsection("permeability 2D");
     {
@@ -100,14 +101,14 @@ namespace biot
 
     prm.enter_subsection("Elasticity RHS 2D");
     {
-      Functions::ParsedFunction<2>::declare_parameters(prm, 2);
+      Functions::ParsedFunction<2>::declare_parameters(prm,2);
       prm.set("Function expression", "0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Elasticity RHS 3D");
     {
-      Functions::ParsedFunction<3>::declare_parameters(prm, 3);
+      Functions::ParsedFunction<3>::declare_parameters(prm,3);
       prm.set("Function expression", "0; 0; 0");
     }
     prm.leave_subsection();
@@ -128,71 +129,65 @@ namespace biot
 
     prm.enter_subsection("Elasticity BC 2D");
     {
-      Functions::ParsedFunction<2>::declare_parameters(prm, 2);
+      Functions::ParsedFunction<2>::declare_parameters(prm,2);
       prm.set("Function expression", "0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Elasticity BC 3D");
     {
-      Functions::ParsedFunction<3>::declare_parameters(prm, 3);
+      Functions::ParsedFunction<3>::declare_parameters(prm,3);
       prm.set("Function expression", "0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Initial conditions 2D");
     {
-      Functions::ParsedFunction<2>::declare_parameters(prm, 10);
+      Functions::ParsedFunction<2>::declare_parameters(prm,10);
       prm.set("Function expression", "0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Initial conditions 3D");
     {
-      Functions::ParsedFunction<3>::declare_parameters(prm, 19);
-      prm.set("Function expression",
-              "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
+      Functions::ParsedFunction<3>::declare_parameters(prm,19);
+      prm.set("Function expression", "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Exact solution 2D");
     {
-      Functions::ParsedFunction<2>::declare_parameters(prm, 10);
+      Functions::ParsedFunction<2>::declare_parameters(prm,10);
       prm.set("Function expression", "0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Exact solution 3D");
     {
-      Functions::ParsedFunction<3>::declare_parameters(prm, 19);
-      prm.set("Function expression",
-              "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
+      Functions::ParsedFunction<3>::declare_parameters(prm,19);
+      prm.set("Function expression", "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Exact gradient 2D");
     {
-      Functions::ParsedFunction<2>::declare_parameters(prm, 20);
-      prm.set("Function expression",
-              "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
+      Functions::ParsedFunction<2>::declare_parameters(prm,20);
+      prm.set("Function expression", "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Exact gradient 3D");
     {
-      Functions::ParsedFunction<3>::declare_parameters(prm, 57);
-      prm.set(
-        "Function expression",
-        "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
+      Functions::ParsedFunction<3>::declare_parameters(prm,57);
+      prm.set("Function expression", "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
     }
     prm.leave_subsection();
   }
-  inline void
-  BiotParameterReader::read_parameters(const std::string parameter_file)
+  inline void BiotParameterReader::read_parameters (const std::string parameter_file)
   {
     declare_parameters();
-    prm.parse_input(parameter_file);
+    prm.parse_input (parameter_file);
   }
-} // namespace biot
+}
 
-#endif // PEFLOW_BIOT_PARAMETER_READER_H
+#endif //PEFLOW_BIOT_PARAMETER_READER_H

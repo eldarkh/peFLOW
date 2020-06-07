@@ -16,27 +16,24 @@ namespace darcy
 {
   using namespace dealii;
 
-  class DarcyParameterReader : public Subscriptor
+class DarcyParameterReader : public Subscriptor
   {
   public:
-    DarcyParameterReader(ParameterHandler &paramhandler)
-      : prm(paramhandler)
-    {}
-    inline void
-    read_parameters(const std::string);
-
+    DarcyParameterReader(ParameterHandler &paramhandler) : prm(paramhandler) {}
+    inline void read_parameters(const std::string);
   private:
-    inline void
-                      declare_parameters();
+    inline void declare_parameters();
     ParameterHandler &prm;
   };
 
-  inline void
-  DarcyParameterReader::declare_parameters()
+  inline void DarcyParameterReader::declare_parameters()
   {
-    prm.declare_entry("degree", "0", Patterns::Integer());
-    prm.declare_entry("refinements", "1", Patterns::Integer());
-    prm.declare_entry("grid_flag", "0", Patterns::Integer());
+    prm.declare_entry("degree", "0",
+                      Patterns::Integer());
+    prm.declare_entry("refinements", "1",
+                      Patterns::Integer());
+    prm.declare_entry("grid_flag", "0",
+                      Patterns::Integer());
 
     prm.enter_subsection("permeability 2D");
     {
@@ -82,38 +79,37 @@ namespace darcy
 
     prm.enter_subsection("Exact solution 2D");
     {
-      Functions::ParsedFunction<2>::declare_parameters(prm, 3);
+      Functions::ParsedFunction<2>::declare_parameters(prm,3);
       prm.set("Function expression", "0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Exact solution 3D");
     {
-      Functions::ParsedFunction<3>::declare_parameters(prm, 4);
+      Functions::ParsedFunction<3>::declare_parameters(prm,4);
       prm.set("Function expression", "0; 0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Exact gradient 2D");
     {
-      Functions::ParsedFunction<2>::declare_parameters(prm, 6);
+      Functions::ParsedFunction<2>::declare_parameters(prm,6);
       prm.set("Function expression", "0; 0; 0; 0; 0; 0");
     }
     prm.leave_subsection();
 
     prm.enter_subsection("Exact gradient 3D");
     {
-      Functions::ParsedFunction<3>::declare_parameters(prm, 12);
+      Functions::ParsedFunction<3>::declare_parameters(prm,12);
       prm.set("Function expression", "0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0; 0");
     }
     prm.leave_subsection();
   }
-  inline void
-  DarcyParameterReader::read_parameters(const std::string parameter_file)
+  inline void DarcyParameterReader::read_parameters (const std::string parameter_file)
   {
     declare_parameters();
-    prm.parse_input(parameter_file);
+    prm.parse_input (parameter_file);
   }
-} // namespace darcy
+}
 
-#endif // PEFLOW_DARCY_PARAMETER_READER_H
+#endif //PEFLOW_DARCY_PARAMETER_READER_H
